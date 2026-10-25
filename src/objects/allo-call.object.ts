@@ -1,0 +1,396 @@
+import { defineObject, FieldType, NumberDataType } from 'twenty-sdk/define';
+
+import {
+  ALLO_CALL_DIRECTION_INBOUND,
+  ALLO_CALL_DIRECTION_OUTBOUND,
+  ALLO_CALL_STATUS_COMPLETED,
+  ALLO_CALL_STATUS_IN_PROGRESS,
+  ALLO_CALL_STATUS_RINGING,
+} from 'src/constants/allo-call-values';
+import {
+  ALLO_CALL_ALLO_CALL_ID_FIELD_UNIVERSAL_IDENTIFIER,
+  ALLO_CALL_ALLO_NUMBER_FIELD_UNIVERSAL_IDENTIFIER,
+  ALLO_CALL_ALLO_PERSON_ID_FIELD_UNIVERSAL_IDENTIFIER,
+  ALLO_CALL_ANSWERED_AT_FIELD_UNIVERSAL_IDENTIFIER,
+  ALLO_CALL_CONTACT_NUMBER_FIELD_UNIVERSAL_IDENTIFIER,
+  ALLO_CALL_CORRELATION_KEY_FIELD_UNIVERSAL_IDENTIFIER,
+  ALLO_CALL_DATA_COLLECTED_FIELD_UNIVERSAL_IDENTIFIER,
+  ALLO_CALL_DIRECTION_FIELD_UNIVERSAL_IDENTIFIER,
+  ALLO_CALL_DIRECTION_OPTION_INBOUND_UNIVERSAL_IDENTIFIER,
+  ALLO_CALL_DIRECTION_OPTION_OUTBOUND_UNIVERSAL_IDENTIFIER,
+  ALLO_CALL_DURATION_LABEL_FIELD_UNIVERSAL_IDENTIFIER,
+  ALLO_CALL_DURATION_SECONDS_FIELD_UNIVERSAL_IDENTIFIER,
+  ALLO_CALL_ENDED_AT_FIELD_UNIVERSAL_IDENTIFIER,
+  ALLO_CALL_FROM_NAME_FIELD_UNIVERSAL_IDENTIFIER,
+  ALLO_CALL_FROM_NUMBER_FIELD_UNIVERSAL_IDENTIFIER,
+  ALLO_CALL_IVR_RESULT_FIELD_UNIVERSAL_IDENTIFIER,
+  ALLO_CALL_NAME_FIELD_UNIVERSAL_IDENTIFIER,
+  ALLO_CALL_OBJECT_UNIVERSAL_IDENTIFIER,
+  ALLO_CALL_RECORDING_FIELD_UNIVERSAL_IDENTIFIER,
+  ALLO_CALL_RESULT_FIELD_UNIVERSAL_IDENTIFIER,
+  ALLO_CALL_RESULT_OPTION_ANSWERED_UNIVERSAL_IDENTIFIER,
+  ALLO_CALL_RESULT_OPTION_BLOCKED_UNIVERSAL_IDENTIFIER,
+  ALLO_CALL_RESULT_OPTION_FAILED_UNIVERSAL_IDENTIFIER,
+  ALLO_CALL_RESULT_OPTION_TRANSFERRED_AI_UNIVERSAL_IDENTIFIER,
+  ALLO_CALL_RESULT_OPTION_TRANSFERRED_EXTERNAL_UNIVERSAL_IDENTIFIER,
+  ALLO_CALL_RESULT_OPTION_VOICEMAIL_UNIVERSAL_IDENTIFIER,
+  ALLO_CALL_STARTED_AT_FIELD_UNIVERSAL_IDENTIFIER,
+  ALLO_CALL_STATUS_FIELD_UNIVERSAL_IDENTIFIER,
+  ALLO_CALL_STATUS_OPTION_COMPLETED_UNIVERSAL_IDENTIFIER,
+  ALLO_CALL_STATUS_OPTION_IN_PROGRESS_UNIVERSAL_IDENTIFIER,
+  ALLO_CALL_STATUS_OPTION_RINGING_UNIVERSAL_IDENTIFIER,
+  ALLO_CALL_SUMMARY_FIELD_UNIVERSAL_IDENTIFIER,
+  ALLO_CALL_TAGS_FIELD_UNIVERSAL_IDENTIFIER,
+  ALLO_CALL_TO_NAME_FIELD_UNIVERSAL_IDENTIFIER,
+  ALLO_CALL_TO_NUMBER_FIELD_UNIVERSAL_IDENTIFIER,
+  ALLO_CALL_TRANSCRIPT_ENTRIES_FIELD_UNIVERSAL_IDENTIFIER,
+  ALLO_CALL_TRANSCRIPT_FIELD_UNIVERSAL_IDENTIFIER,
+  ALLO_CALL_TRANSFER_FIELD_UNIVERSAL_IDENTIFIER,
+  ALLO_CALL_USER_EMAIL_FIELD_UNIVERSAL_IDENTIFIER,
+} from 'src/constants/universal-identifiers';
+
+// One record per Allo call. The record is created by the first event of the call
+// (call.received or call.triggered) and enriched in place by call.answered and
+// call.completed, so a call never produces more than one record.
+export default defineObject({
+  universalIdentifier: ALLO_CALL_OBJECT_UNIVERSAL_IDENTIFIER,
+  nameSingular: 'alloCall',
+  namePlural: 'alloCalls',
+  labelSingular: 'Allo Call',
+  labelPlural: 'Allo Calls',
+  description:
+    'A phone call handled in Allo, with its timing, participants, recording, transcript and AI summary.',
+  icon: 'IconPhone',
+  isSearchable: true,
+  labelIdentifierFieldMetadataUniversalIdentifier:
+    ALLO_CALL_NAME_FIELD_UNIVERSAL_IDENTIFIER,
+  fields: [
+    {
+      universalIdentifier: ALLO_CALL_NAME_FIELD_UNIVERSAL_IDENTIFIER,
+      type: FieldType.TEXT,
+      name: 'name',
+      label: 'Name',
+      description:
+        'Human-readable label for the call, e.g. "Inbound call from Marie Dupont".',
+      icon: 'IconAbc',
+    },
+
+    // --- Identity & correlation -------------------------------------------
+    {
+      universalIdentifier: ALLO_CALL_ALLO_CALL_ID_FIELD_UNIVERSAL_IDENTIFIER,
+      type: FieldType.TEXT,
+      name: 'alloCallId',
+      label: 'Allo call ID',
+      description:
+        'Allo identifier of the call (cll_...). Only sent on call.completed.',
+      icon: 'IconHash',
+    },
+    {
+      universalIdentifier: ALLO_CALL_CORRELATION_KEY_FIELD_UNIVERSAL_IDENTIFIER,
+      type: FieldType.TEXT,
+      name: 'correlationKey',
+      label: 'Correlation key',
+      description:
+        'Internal key (from|to|startedAt) used to match the events of one call before Allo sends its call ID. Do not edit.',
+      icon: 'IconKey',
+      isUIEditable: false,
+    },
+
+    // --- Timing ------------------------------------------------------------
+    {
+      universalIdentifier: ALLO_CALL_STARTED_AT_FIELD_UNIVERSAL_IDENTIFIER,
+      type: FieldType.DATE_TIME,
+      name: 'startedAt',
+      label: 'Started at',
+      description: 'When the call started ringing.',
+      icon: 'IconCalendarClock',
+    },
+    {
+      universalIdentifier: ALLO_CALL_ANSWERED_AT_FIELD_UNIVERSAL_IDENTIFIER,
+      type: FieldType.DATE_TIME,
+      name: 'answeredAt',
+      label: 'Answered at',
+      description: 'When the call was picked up. Empty if never answered.',
+      icon: 'IconPhoneCheck',
+    },
+    {
+      universalIdentifier: ALLO_CALL_ENDED_AT_FIELD_UNIVERSAL_IDENTIFIER,
+      type: FieldType.DATE_TIME,
+      name: 'endedAt',
+      label: 'Ended at',
+      description:
+        'When the call ended, derived from the start date plus its duration.',
+      icon: 'IconPhoneOff',
+    },
+    {
+      universalIdentifier:
+        ALLO_CALL_DURATION_SECONDS_FIELD_UNIVERSAL_IDENTIFIER,
+      type: FieldType.NUMBER,
+      name: 'durationSeconds',
+      label: 'Duration (s)',
+      description: 'Call duration in seconds.',
+      icon: 'IconClock',
+      universalSettings: { dataType: NumberDataType.INT },
+    },
+    {
+      universalIdentifier: ALLO_CALL_DURATION_LABEL_FIELD_UNIVERSAL_IDENTIFIER,
+      type: FieldType.TEXT,
+      name: 'durationLabel',
+      label: 'Duration',
+      description: 'Call duration as Allo formats it, e.g. "5m 30s".',
+      icon: 'IconClockHour3',
+    },
+
+    // --- Origin & target ---------------------------------------------------
+    {
+      universalIdentifier: ALLO_CALL_DIRECTION_FIELD_UNIVERSAL_IDENTIFIER,
+      type: FieldType.SELECT,
+      name: 'direction',
+      label: 'Direction',
+      description: 'Whether the call came in or went out.',
+      icon: 'IconArrowsLeftRight',
+      options: [
+        {
+          id: ALLO_CALL_DIRECTION_OPTION_INBOUND_UNIVERSAL_IDENTIFIER,
+          value: ALLO_CALL_DIRECTION_INBOUND,
+          label: 'Inbound',
+          color: 'blue',
+          position: 0,
+        },
+        {
+          id: ALLO_CALL_DIRECTION_OPTION_OUTBOUND_UNIVERSAL_IDENTIFIER,
+          value: ALLO_CALL_DIRECTION_OUTBOUND,
+          label: 'Outbound',
+          color: 'purple',
+          position: 1,
+        },
+      ],
+    },
+    {
+      universalIdentifier: ALLO_CALL_FROM_NUMBER_FIELD_UNIVERSAL_IDENTIFIER,
+      type: FieldType.TEXT,
+      name: 'fromNumber',
+      label: 'From number',
+      description: 'Calling number, in E.164 format.',
+      icon: 'IconPhoneOutgoing',
+    },
+    {
+      universalIdentifier: ALLO_CALL_FROM_NAME_FIELD_UNIVERSAL_IDENTIFIER,
+      type: FieldType.TEXT,
+      name: 'fromName',
+      label: 'From name',
+      description: 'Caller name as resolved by Allo.',
+      icon: 'IconUser',
+    },
+    {
+      universalIdentifier: ALLO_CALL_TO_NUMBER_FIELD_UNIVERSAL_IDENTIFIER,
+      type: FieldType.TEXT,
+      name: 'toNumber',
+      label: 'To number',
+      description: 'Called number, in E.164 format.',
+      icon: 'IconPhoneIncoming',
+    },
+    {
+      universalIdentifier: ALLO_CALL_TO_NAME_FIELD_UNIVERSAL_IDENTIFIER,
+      type: FieldType.TEXT,
+      name: 'toName',
+      label: 'To name',
+      description: 'Recipient name as resolved by Allo.',
+      icon: 'IconUser',
+    },
+    {
+      universalIdentifier: ALLO_CALL_CONTACT_NUMBER_FIELD_UNIVERSAL_IDENTIFIER,
+      type: FieldType.TEXT,
+      name: 'contactNumber',
+      label: 'Contact number',
+      description:
+        'The number on the other end of the call: the caller for an inbound call, the callee for an outbound one. This is what the Person link is resolved from.',
+      icon: 'IconAddressBook',
+    },
+    {
+      universalIdentifier: ALLO_CALL_ALLO_NUMBER_FIELD_UNIVERSAL_IDENTIFIER,
+      type: FieldType.TEXT,
+      name: 'alloNumber',
+      label: 'Allo number',
+      description: 'The Allo-side number used for the call.',
+      icon: 'IconDeviceMobile',
+    },
+
+    // --- Lifecycle & outcome ----------------------------------------------
+    {
+      universalIdentifier: ALLO_CALL_STATUS_FIELD_UNIVERSAL_IDENTIFIER,
+      type: FieldType.SELECT,
+      name: 'status',
+      label: 'Status',
+      description: 'Where the call is in its lifecycle.',
+      icon: 'IconProgress',
+      defaultValue: `'${ALLO_CALL_STATUS_RINGING}'`,
+      options: [
+        {
+          id: ALLO_CALL_STATUS_OPTION_RINGING_UNIVERSAL_IDENTIFIER,
+          value: ALLO_CALL_STATUS_RINGING,
+          label: 'Ringing',
+          color: 'yellow',
+          position: 0,
+        },
+        {
+          id: ALLO_CALL_STATUS_OPTION_IN_PROGRESS_UNIVERSAL_IDENTIFIER,
+          value: ALLO_CALL_STATUS_IN_PROGRESS,
+          label: 'In progress',
+          color: 'blue',
+          position: 1,
+        },
+        {
+          id: ALLO_CALL_STATUS_OPTION_COMPLETED_UNIVERSAL_IDENTIFIER,
+          value: ALLO_CALL_STATUS_COMPLETED,
+          label: 'Completed',
+          color: 'green',
+          position: 2,
+        },
+      ],
+    },
+    {
+      universalIdentifier: ALLO_CALL_RESULT_FIELD_UNIVERSAL_IDENTIFIER,
+      type: FieldType.SELECT,
+      name: 'result',
+      label: 'Result',
+      description: 'How the call ended, as reported by Allo.',
+      icon: 'IconCircleCheck',
+      options: [
+        {
+          id: ALLO_CALL_RESULT_OPTION_ANSWERED_UNIVERSAL_IDENTIFIER,
+          value: 'ANSWERED',
+          label: 'Answered',
+          color: 'green',
+          position: 0,
+        },
+        {
+          id: ALLO_CALL_RESULT_OPTION_VOICEMAIL_UNIVERSAL_IDENTIFIER,
+          value: 'VOICEMAIL',
+          label: 'Voicemail',
+          color: 'orange',
+          position: 1,
+        },
+        {
+          id: ALLO_CALL_RESULT_OPTION_TRANSFERRED_AI_UNIVERSAL_IDENTIFIER,
+          value: 'TRANSFERRED_AI',
+          label: 'Transferred to AI',
+          color: 'purple',
+          position: 2,
+        },
+        {
+          id: ALLO_CALL_RESULT_OPTION_TRANSFERRED_EXTERNAL_UNIVERSAL_IDENTIFIER,
+          value: 'TRANSFERRED_EXTERNAL',
+          label: 'Transferred externally',
+          color: 'blue',
+          position: 3,
+        },
+        {
+          id: ALLO_CALL_RESULT_OPTION_BLOCKED_UNIVERSAL_IDENTIFIER,
+          value: 'BLOCKED',
+          label: 'Blocked',
+          color: 'gray',
+          position: 4,
+        },
+        {
+          id: ALLO_CALL_RESULT_OPTION_FAILED_UNIVERSAL_IDENTIFIER,
+          value: 'FAILED',
+          label: 'Failed',
+          color: 'red',
+          position: 5,
+        },
+      ],
+    },
+
+    // --- Content -----------------------------------------------------------
+    {
+      universalIdentifier: ALLO_CALL_SUMMARY_FIELD_UNIVERSAL_IDENTIFIER,
+      type: FieldType.TEXT,
+      name: 'summary',
+      label: 'Summary',
+      description: 'AI-generated summary of the call.',
+      icon: 'IconSparkles',
+      universalSettings: { displayedMaxRows: 5 },
+    },
+    {
+      universalIdentifier: ALLO_CALL_TRANSCRIPT_FIELD_UNIVERSAL_IDENTIFIER,
+      type: FieldType.TEXT,
+      name: 'transcript',
+      label: 'Transcript',
+      description: 'Full transcript of the call, speaker-labelled.',
+      icon: 'IconFileText',
+      universalSettings: { displayedMaxRows: 20 },
+    },
+    {
+      universalIdentifier:
+        ALLO_CALL_TRANSCRIPT_ENTRIES_FIELD_UNIVERSAL_IDENTIFIER,
+      type: FieldType.RAW_JSON,
+      name: 'transcriptEntries',
+      label: 'Transcript entries',
+      description:
+        'Transcript as structured turns, each with its speaker and timestamp.',
+      icon: 'IconMessages',
+    },
+    {
+      universalIdentifier: ALLO_CALL_RECORDING_FIELD_UNIVERSAL_IDENTIFIER,
+      type: FieldType.LINKS,
+      name: 'recording',
+      label: 'Recording',
+      description: 'Link to the call recording, when recording is enabled.',
+      icon: 'IconMicrophone',
+    },
+    {
+      universalIdentifier: ALLO_CALL_TAGS_FIELD_UNIVERSAL_IDENTIFIER,
+      type: FieldType.ARRAY,
+      name: 'tags',
+      label: 'Tags',
+      description: 'Tags applied to the call in Allo.',
+      icon: 'IconTags',
+    },
+    {
+      universalIdentifier: ALLO_CALL_DATA_COLLECTED_FIELD_UNIVERSAL_IDENTIFIER,
+      type: FieldType.RAW_JSON,
+      name: 'dataCollected',
+      label: 'Data collected',
+      description: 'Custom data Allo collected during the call.',
+      icon: 'IconClipboardData',
+    },
+    {
+      universalIdentifier: ALLO_CALL_IVR_RESULT_FIELD_UNIVERSAL_IDENTIFIER,
+      type: FieldType.RAW_JSON,
+      name: 'ivrResult',
+      label: 'IVR result',
+      description: 'IVR menu options the caller selected.',
+      icon: 'IconNumbers',
+    },
+    {
+      universalIdentifier: ALLO_CALL_TRANSFER_FIELD_UNIVERSAL_IDENTIFIER,
+      type: FieldType.RAW_JSON,
+      name: 'transfer',
+      label: 'Transfer',
+      description:
+        'Transfer details: where the call came from and where it went, plus the original call ID.',
+      icon: 'IconArrowForward',
+    },
+
+    // --- Raw payload trail -------------------------------------------------
+    {
+      universalIdentifier: ALLO_CALL_USER_EMAIL_FIELD_UNIVERSAL_IDENTIFIER,
+      type: FieldType.TEXT,
+      name: 'userEmail',
+      label: 'Allo user email',
+      description:
+        'Email of the Allo user who handled the call. Kept even when no Twenty member matches it.',
+      icon: 'IconMail',
+    },
+    {
+      universalIdentifier: ALLO_CALL_ALLO_PERSON_ID_FIELD_UNIVERSAL_IDENTIFIER,
+      type: FieldType.TEXT,
+      name: 'alloPersonId',
+      label: 'Allo contact ID',
+      description:
+        'Allo identifier of the matched contact (con_...). Kept even when no Twenty person matches.',
+      icon: 'IconIdBadge2',
+    },
+  ],
+});

@@ -1,0 +1,54 @@
+# Publishes the app to npm with provenance (npm trusted publishing), which is
+# what lets the GitHub owner claim the app in the Twenty marketplace.
+#
+# One-time setup:
+# 1. On npmjs.com open the package > Settings > Trusted Publisher and register
+#    this repository and this workflow file (publish.yml).
+#    See https://docs.npmjs.com/trusted-publishers
+# 2. Bump `version` in package.json, add a CHANGELOG entry, then push a matching
+#    tag: `git tag v0.2.0 && git push --tags`.
+name: Publish
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  # Required for npm trusted publishing (OIDC provenance).
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          registry-url: https://registry.npmjs.org
+
+      - name: Update npm
+        # Trusted publishing requires npm 11.5.1 or later.
+        run: npm install -g npm@latest
+
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      - name: Check the tag matches package.json
+        if: startsWith(github.ref, 'refs/tags/')
+        run: test "v$(node -p "require('./package.json').version")" = "${GITHUB_REF_NAME}"
+
+      - name: Unit tests
+        run: yarn test:unit
+
+      - name: Publish to npm
+        run: yarn twenty app:publish

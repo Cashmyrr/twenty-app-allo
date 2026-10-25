@@ -1,0 +1,204 @@
+// Central registry of the app's universal identifiers.
+// Every entity in a Twenty app carries a stable UUID (its `universalIdentifier`).
+// These must never change once the app is synced to a workspace: Twenty matches
+// local definitions to remote metadata by this id, so editing one drops the
+// existing entity and recreates it (losing its data).
+
+export const APP_DISPLAY_NAME = 'Allo';
+export const APP_DESCRIPTION =
+  'Sync every Allo call into Twenty, linked to the member who handled it and the person on the other end, and send any selection of people to the Allo Power Dialer.';
+
+export const APPLICATION_UNIVERSAL_IDENTIFIER =
+  '54fdf21f-fe53-48a5-8f1b-29caceac96e9';
+export const DEFAULT_ROLE_UNIVERSAL_IDENTIFIER =
+  '88cc69ef-d6e4-4273-914c-3fb114941a1f';
+
+// Application variables
+export const ALLO_API_KEY_VARIABLE_UNIVERSAL_IDENTIFIER =
+  '0492bd78-62e6-4796-be55-0f953628974a';
+
+// Allo call object
+export const ALLO_CALL_OBJECT_UNIVERSAL_IDENTIFIER =
+  'f20401d5-4f0d-40df-af00-d8d880b21b88';
+
+// Allo call fields — identity & correlation
+export const ALLO_CALL_NAME_FIELD_UNIVERSAL_IDENTIFIER =
+  '4e10e6a9-e276-49ae-85cf-ccd3b945a5ec';
+export const ALLO_CALL_ALLO_CALL_ID_FIELD_UNIVERSAL_IDENTIFIER =
+  'f0b3c865-2233-4729-a8cd-d57cd2846ccb';
+export const ALLO_CALL_CORRELATION_KEY_FIELD_UNIVERSAL_IDENTIFIER =
+  'fda27ad8-72ba-4038-9acb-ffe8de685a32';
+
+// Allo call fields — timing
+export const ALLO_CALL_STARTED_AT_FIELD_UNIVERSAL_IDENTIFIER =
+  '935d7d03-3d09-4c39-b54d-0502442692c4';
+export const ALLO_CALL_ANSWERED_AT_FIELD_UNIVERSAL_IDENTIFIER =
+  '00f89522-0eb1-4264-88b2-5515fc4c0e97';
+export const ALLO_CALL_ENDED_AT_FIELD_UNIVERSAL_IDENTIFIER =
+  '400ac5ca-0dc0-401f-a163-77bf38ce1b49';
+export const ALLO_CALL_DURATION_SECONDS_FIELD_UNIVERSAL_IDENTIFIER =
+  'c8d8b53f-9e8a-4a12-a68d-cd49ce018279';
+export const ALLO_CALL_DURATION_LABEL_FIELD_UNIVERSAL_IDENTIFIER =
+  '1918ed5a-c04f-450f-804e-de558b7a5b7d';
+
+// Allo call fields — routing (origin / target)
+export const ALLO_CALL_DIRECTION_FIELD_UNIVERSAL_IDENTIFIER =
+  'b803cff0-04ae-4e50-8e94-970911d85b89';
+export const ALLO_CALL_DIRECTION_OPTION_INBOUND_UNIVERSAL_IDENTIFIER =
+  '3b9c3e3e-d1e0-47e2-8928-671ea4568326';
+export const ALLO_CALL_DIRECTION_OPTION_OUTBOUND_UNIVERSAL_IDENTIFIER =
+  '404fa5a9-c980-4633-bed8-7832b52a9341';
+export const ALLO_CALL_FROM_NUMBER_FIELD_UNIVERSAL_IDENTIFIER =
+  '2af8a654-b62b-4741-8498-33b10ea4d5a3';
+export const ALLO_CALL_FROM_NAME_FIELD_UNIVERSAL_IDENTIFIER =
+  '9f19de0c-1015-4082-a3d1-95eb1ab61b08';
+export const ALLO_CALL_TO_NUMBER_FIELD_UNIVERSAL_IDENTIFIER =
+  '565d2025-2f6d-4ee1-b9bc-37cec170c201';
+export const ALLO_CALL_TO_NAME_FIELD_UNIVERSAL_IDENTIFIER =
+  'dd7a20ae-5fb5-412a-80b2-991f30015e28';
+export const ALLO_CALL_CONTACT_NUMBER_FIELD_UNIVERSAL_IDENTIFIER =
+  '78bd97f8-7f76-4ed8-a73b-74ddfdc88681';
+export const ALLO_CALL_ALLO_NUMBER_FIELD_UNIVERSAL_IDENTIFIER =
+  'faf6b0b5-f362-45fb-a6c3-32071236164b';
+
+// Allo call fields — lifecycle & outcome
+export const ALLO_CALL_STATUS_FIELD_UNIVERSAL_IDENTIFIER =
+  '0a6eca90-9638-465e-b2fe-5383183f13ad';
+export const ALLO_CALL_STATUS_OPTION_RINGING_UNIVERSAL_IDENTIFIER =
+  '2c356936-6896-421e-80c6-abc715d189e8';
+export const ALLO_CALL_STATUS_OPTION_IN_PROGRESS_UNIVERSAL_IDENTIFIER =
+  '95921818-68f3-47f3-b357-a867adb05fba';
+export const ALLO_CALL_STATUS_OPTION_COMPLETED_UNIVERSAL_IDENTIFIER =
+  'd2cff392-69e7-4e81-8784-62ab5ab862ae';
+export const ALLO_CALL_RESULT_FIELD_UNIVERSAL_IDENTIFIER =
+  '0fca503d-74eb-40f9-b762-26c4f079d0b6';
+export const ALLO_CALL_RESULT_OPTION_ANSWERED_UNIVERSAL_IDENTIFIER =
+  '0a24668b-3499-4e50-993d-3f36d7cf7b17';
+export const ALLO_CALL_RESULT_OPTION_VOICEMAIL_UNIVERSAL_IDENTIFIER =
+  '9388a572-d4b5-49ee-a541-0f15a7140264';
+export const ALLO_CALL_RESULT_OPTION_TRANSFERRED_AI_UNIVERSAL_IDENTIFIER =
+  'fd2f9ac1-0dd3-4657-8c3d-c6776ad799e9';
+export const ALLO_CALL_RESULT_OPTION_TRANSFERRED_EXTERNAL_UNIVERSAL_IDENTIFIER =
+  'b3a52998-0ab3-4690-8e8e-a95ce848c063';
+export const ALLO_CALL_RESULT_OPTION_BLOCKED_UNIVERSAL_IDENTIFIER =
+  '075fcacc-63d0-4bc4-b2fb-fdca9cb74c58';
+export const ALLO_CALL_RESULT_OPTION_FAILED_UNIVERSAL_IDENTIFIER =
+  'fafd45ea-2691-4783-96d9-d68a2c8b0104';
+
+// Allo call fields — content
+export const ALLO_CALL_SUMMARY_FIELD_UNIVERSAL_IDENTIFIER =
+  '4cb5317a-e2ef-4fec-8110-ea89732d85da';
+export const ALLO_CALL_TRANSCRIPT_FIELD_UNIVERSAL_IDENTIFIER =
+  '3964ed07-73bc-4ad9-8816-c9c2653e7eba';
+export const ALLO_CALL_TRANSCRIPT_ENTRIES_FIELD_UNIVERSAL_IDENTIFIER =
+  '5fdb1710-e15f-4da4-92f5-49fb1f553d0b';
+export const ALLO_CALL_RECORDING_FIELD_UNIVERSAL_IDENTIFIER =
+  'fce88051-91d9-4549-a91a-6db58b8d5dee';
+export const ALLO_CALL_TAGS_FIELD_UNIVERSAL_IDENTIFIER =
+  '99ad8724-cef7-4c03-b522-fbd8d59a4027';
+export const ALLO_CALL_DATA_COLLECTED_FIELD_UNIVERSAL_IDENTIFIER =
+  '289f8ca6-b1f8-4571-a0e4-4784386d1802';
+export const ALLO_CALL_IVR_RESULT_FIELD_UNIVERSAL_IDENTIFIER =
+  'f3de542b-b464-4fb7-9cd8-629f73ee85a6';
+export const ALLO_CALL_TRANSFER_FIELD_UNIVERSAL_IDENTIFIER =
+  '33624c98-1d46-4a1c-ae8e-5cd83ffc237c';
+
+// Allo call fields — raw payload trail
+export const ALLO_CALL_USER_EMAIL_FIELD_UNIVERSAL_IDENTIFIER =
+  'd895fe8e-99ce-4694-b0cf-39d4769a2b8f';
+export const ALLO_CALL_ALLO_PERSON_ID_FIELD_UNIVERSAL_IDENTIFIER =
+  '21905d17-8c3a-4b78-8a8e-a4adcf2e8708';
+
+// Relations to standard objects
+export const ALLO_CALL_MEMBER_FIELD_UNIVERSAL_IDENTIFIER =
+  'c20527f6-5e0c-48b5-9838-c817cd3b2cdc';
+export const WORKSPACE_MEMBER_ALLO_CALLS_FIELD_UNIVERSAL_IDENTIFIER =
+  'ccc972d4-ad0e-47bb-85ac-7f637f20b906';
+export const ALLO_CALL_PERSON_FIELD_UNIVERSAL_IDENTIFIER =
+  '7cc14294-5b50-4128-9ad3-cfa1da284456';
+export const PERSON_ALLO_CALLS_FIELD_UNIVERSAL_IDENTIFIER =
+  'dd09b0b2-200a-4180-9328-6e5a9bbb5f08';
+export const ALLO_CALL_COMPANY_FIELD_UNIVERSAL_IDENTIFIER =
+  '0feaeb1c-6cf3-449b-9855-17a09d50b364';
+export const COMPANY_ALLO_CALLS_FIELD_UNIVERSAL_IDENTIFIER =
+  '95e3d814-ae11-480a-9a26-1be49b91deed';
+
+// Indexes
+export const ALLO_CALL_ID_INDEX_UNIVERSAL_IDENTIFIER =
+  '778495ea-c199-4c97-97cf-9e77cfb860e2';
+export const ALLO_CALL_ID_INDEX_FIELD_UNIVERSAL_IDENTIFIER =
+  'a566a732-3344-474f-ac12-b0db596352fb';
+export const ALLO_CALL_CORRELATION_KEY_INDEX_UNIVERSAL_IDENTIFIER =
+  '16d96004-43e7-4811-a2f2-f57e5315b54e';
+export const ALLO_CALL_CORRELATION_KEY_INDEX_FIELD_UNIVERSAL_IDENTIFIER =
+  'b1e0b12a-f2fa-4996-b99c-0126ab0e4b33';
+
+// Webhook: a public server route resolves the workspace, then dispatches the
+// event to the processing function inside that workspace.
+export const ALLO_WEBHOOK_RESOLVER_LOGIC_FUNCTION_UNIVERSAL_IDENTIFIER =
+  'f9693cfb-0732-4707-8586-2b1134dfc0cd';
+export const ALLO_WEBHOOK_LOGIC_FUNCTION_UNIVERSAL_IDENTIFIER =
+  'da29240e-0f63-43e7-990b-ec7c2cfb1f97';
+
+// Connection lifecycle: the settings tab connects and disconnects Allo, the
+// health check reports the state, uninstall removes the webhook.
+export const ALLO_CONNECT_LOGIC_FUNCTION_UNIVERSAL_IDENTIFIER =
+  'feb223cb-f470-479c-902f-6df295ac5d8a';
+export const ALLO_DISCONNECT_LOGIC_FUNCTION_UNIVERSAL_IDENTIFIER =
+  'e15d351e-65e1-4d97-8c8d-18c770923696';
+export const ALLO_CONNECTION_STATUS_LOGIC_FUNCTION_UNIVERSAL_IDENTIFIER =
+  'fbad7572-0514-4716-9051-4112dfab6c75';
+export const SETTINGS_FRONT_COMPONENT_UNIVERSAL_IDENTIFIER =
+  '7270f165-5fe0-4bf3-b282-3cdfd865d9ce';
+export const SETTINGS_MENU_ITEM_UNIVERSAL_IDENTIFIER =
+  'ba5dbe3d-09ba-4373-93ed-6f3da0e3ae8b';
+export const UNINSTALL_LOGIC_FUNCTION_UNIVERSAL_IDENTIFIER =
+  'ac12f491-78f5-4ff0-ba29-d273a987acdd';
+export const HEALTH_CHECK_LOGIC_FUNCTION_UNIVERSAL_IDENTIFIER =
+  '877eef40-7cd6-4e59-bb97-05cdfd94580d';
+
+// View + view fields
+export const ALLO_CALLS_VIEW_UNIVERSAL_IDENTIFIER =
+  '2e569632-ad58-4152-86f6-99e090786cf9';
+export const ALLO_CALLS_VIEW_NAME_FIELD_UNIVERSAL_IDENTIFIER =
+  '29a51b0e-c542-4b59-b224-95207b50a24a';
+export const ALLO_CALLS_VIEW_STARTED_AT_FIELD_UNIVERSAL_IDENTIFIER =
+  'c1f5a029-5de3-454f-92bd-f2a27a124e1f';
+export const ALLO_CALLS_VIEW_DIRECTION_FIELD_UNIVERSAL_IDENTIFIER =
+  '727c56fa-b887-4f0a-a368-47ea4d7bf44c';
+export const ALLO_CALLS_VIEW_STATUS_FIELD_UNIVERSAL_IDENTIFIER =
+  'f0b3a919-b02c-4da6-b226-a75e19d93ea0';
+export const ALLO_CALLS_VIEW_RESULT_FIELD_UNIVERSAL_IDENTIFIER =
+  '4415dd09-9e13-403f-ad4f-a80b3db56320';
+export const ALLO_CALLS_VIEW_MEMBER_FIELD_UNIVERSAL_IDENTIFIER =
+  'a6a156f2-af35-42a6-95f8-711d29e5f89b';
+export const ALLO_CALLS_VIEW_PERSON_FIELD_UNIVERSAL_IDENTIFIER =
+  '2e8fba91-442b-443f-8f17-b33e4c63ef78';
+export const ALLO_CALLS_VIEW_DURATION_FIELD_UNIVERSAL_IDENTIFIER =
+  'e06e4c12-00f2-4f1d-a48e-8a0c3b51e33a';
+export const ALLO_CALLS_VIEW_SUMMARY_FIELD_UNIVERSAL_IDENTIFIER =
+  '4e33eaba-47b0-4127-99ec-a39cdb8260ff';
+export const ALLO_CALLS_VIEW_STARTED_AT_SORT_UNIVERSAL_IDENTIFIER =
+  '50d1f0fe-4b16-40cb-8ecf-f2804270b5f8';
+
+// Navigation menu item
+export const ALLO_CALLS_NAVIGATION_MENU_ITEM_UNIVERSAL_IDENTIFIER =
+  '60244939-6d20-4b89-99e4-d162a3c89a52';
+
+// Last call date, denormalised onto the person so it can be filtered on.
+// Twenty refuses to filter on the "many" side of a relation, so `alloCalls`
+// itself is not a usable filter criterion. See docs/architecture.md.
+export const PERSON_LAST_ALLO_CALL_AT_FIELD_UNIVERSAL_IDENTIFIER =
+  '0ede0fd9-94ce-4350-9d73-dc4151b4449e';
+export const SYNC_LAST_ALLO_CALL_ON_CREATE_LOGIC_FUNCTION_UNIVERSAL_IDENTIFIER =
+  '5e827f6d-1be9-43e1-8b86-892828a1862a';
+export const SYNC_LAST_ALLO_CALL_ON_LINK_LOGIC_FUNCTION_UNIVERSAL_IDENTIFIER =
+  '290a2468-12ab-43a4-9eab-0edc47b01dca';
+
+// Push a view selection into the caller's Allo Power Dialer queue.
+export const PUSH_TO_DIALER_LOGIC_FUNCTION_UNIVERSAL_IDENTIFIER =
+  'f563264e-09b4-488a-b179-9ea257259cdb';
+export const PUSH_TO_DIALER_FRONT_COMPONENT_UNIVERSAL_IDENTIFIER =
+  'c11ee7bf-e050-4566-adc0-02a87c0d1414';
+export const PUSH_TO_DIALER_COMMAND_MENU_ITEM_UNIVERSAL_IDENTIFIER =
+  '4f4941df-d196-45d8-acbb-96ebca05c41b';
