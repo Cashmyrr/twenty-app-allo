@@ -15,6 +15,9 @@ vi.mock('twenty-client-sdk/metadata', () => ({
   MetadataApiClient: class {
     query = async () => ({
       currentUser: { currentUserWorkspace: { permissionFlags } },
+      currentWorkspace: {
+        workspaceUrls: { subdomainUrl: 'https://acme.twenty.com' },
+      },
     });
   },
 }));
@@ -37,6 +40,7 @@ const CONTEXT = {
 };
 
 const alloRequests: string[] = [];
+let createdWebhook: Record<string, unknown> | null = null;
 
 /** Allo with one webhook endpoint that can be created, read and deleted. */
 const fakeAllo = ({ status }: { status?: number } = {}) => {
@@ -55,6 +59,8 @@ const fakeAllo = ({ status }: { status?: number } = {}) => {
 
       if (method === 'POST') {
         const body = JSON.parse(String(init.body));
+
+        createdWebhook = body;
 
         endpoint = {
           id: 'ep_1',
@@ -84,6 +90,7 @@ const connect = () => alloConnectHandler({}, CONTEXT);
 beforeEach(() => {
   memoryKv.store.clear();
   alloRequests.length = 0;
+  createdWebhook = null;
   permissionFlags = ['APPLICATIONS'];
   process.env.ALLO_API_KEY = 'allo_key_1';
   process.env.TWENTY_API_URL = 'https://crm.example.com';
@@ -107,6 +114,12 @@ describe('connect', () => {
     expect(await alloConnectionStatusHandler()).toMatchObject({
       state: 'connected',
     });
+  });
+
+  it('names the workspace in the webhook description', async () => {
+    await connect();
+
+    expect(createdWebhook?.description).toBe('Twenty CRM (acme.twenty.com)');
   });
 
   it('does nothing more than one check when already connected', async () => {

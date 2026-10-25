@@ -17,6 +17,7 @@ vi.mock('twenty-sdk/logic-function', async (importOriginal) => ({
 const {
   buildAlloWebhookUrl,
   connectAllo,
+  describeAlloWebhook,
   disconnectAllo,
   fingerprintApiKey,
   getAlloConnectionStatus,
@@ -117,7 +118,33 @@ describe('buildAlloWebhookUrl', () => {
   });
 });
 
+describe('describeAlloWebhook', () => {
+  it('names the workspace by its host', () => {
+    expect(describeAlloWebhook('https://acme.twenty.com/')).toBe(
+      'Twenty CRM (acme.twenty.com)',
+    );
+  });
+
+  it('falls back to a generic name without a usable URL', () => {
+    expect(describeAlloWebhook()).toBe('Twenty CRM');
+    expect(describeAlloWebhook('not a url')).toBe('Twenty CRM');
+  });
+});
+
 describe('connectAllo', () => {
+  it('describes the webhook with the workspace URL', async () => {
+    const requests = fakeAllo(() => ({ status: 201, body: webhookBody() }));
+
+    await connectAllo({
+      apiKey: API_KEY,
+      apiUrl: API_URL,
+      workspaceId: 'ws_1',
+      workspaceUrl: 'https://acme.twenty.com',
+    });
+
+    expect(requests[0].body.description).toBe('Twenty CRM (acme.twenty.com)');
+  });
+
   it('registers a webhook and stores the claim the resolver needs', async () => {
     const requests = fakeAllo(() => ({ status: 201, body: webhookBody() }));
 

@@ -25,7 +25,7 @@ Brings [Allo](https://www.withallo.com) calls into [Twenty](https://twenty.com).
 1. Install the app from **Settings > Applications**.
 2. Open the app's **Settings** tab, paste your Allo API key and click **Connect**.
 
-The app registers a webhook in Allo (it shows as "Twenty CRM" in Allo > Settings > Webhooks) and calls start syncing. Nothing has to be copied between Allo and Twenty: the app creates the webhook and keeps its signing secret.
+The app registers a webhook in Allo (it shows as "Twenty CRM (your-workspace.twenty.com)" in Allo > Settings > Webhooks, so an Allo account that feeds several workspaces can tell them apart) and calls start syncing. Nothing has to be copied between Allo and Twenty: the app creates the webhook and keeps its signing secret.
 
 The Settings tab shows where things stand, including a webhook that was deleted or disabled in Allo. **Connect** also repairs the webhook, and **Disconnect** removes it. To change the key, paste the new one and connect again. Uninstalling the app deletes the webhook. Connecting and disconnecting require the permission to manage applications.
 

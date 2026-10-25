@@ -9,6 +9,7 @@ import { ALLO_CONNECT_LOGIC_FUNCTION_UNIVERSAL_IDENTIFIER } from 'src/constants/
 import { connectAllo } from 'src/logic-functions/utils/allo-registration';
 import { currentUserCanManageApps } from 'src/logic-functions/utils/current-user-can-manage-apps';
 import { describeAlloError } from 'src/logic-functions/utils/describe-allo-error';
+import { readWorkspaceUrl } from 'src/logic-functions/utils/read-workspace-url';
 
 export type AlloConnectResponse =
   | {
@@ -50,6 +51,7 @@ export const alloConnectHandler = async (
       apiKey,
       apiUrl,
       workspaceId: context.workspaceId,
+      workspaceUrl: await readWorkspaceUrl(),
     });
 
     return { success: true, ...result };

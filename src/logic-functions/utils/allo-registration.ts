@@ -56,6 +56,22 @@ export const buildAlloWebhookUrl = ({
 };
 
 /**
+ * The webhook's description in Allo > Settings > Webhooks. It names the
+ * workspace so an Allo account that feeds several CRMs can tell them apart.
+ */
+export const describeAlloWebhook = (workspaceUrl?: string): string => {
+  if (!workspaceUrl) {
+    return 'Twenty CRM';
+  }
+
+  try {
+    return `Twenty CRM (${new URL(workspaceUrl).host})`;
+  } catch {
+    return 'Twenty CRM';
+  }
+};
+
+/**
  * Whether two webhook URLs deliver to the same registration. Compared parsed,
  * not as strings: if Allo echoes the URL back normalised, a string comparison
  * would re-create the webhook on every sync.
@@ -186,10 +202,13 @@ export const connectAllo = async ({
   apiKey,
   apiUrl,
   workspaceId,
+  workspaceUrl,
 }: {
   apiKey: string;
   apiUrl: string;
   workspaceId: string;
+  /** The workspace's own URL, shown in the webhook description. */
+  workspaceUrl?: string;
 }): Promise<ConnectAlloResult> => {
   const apiKeyFingerprint = fingerprintApiKey(apiKey);
   const existing = await readAlloRegistration();
@@ -227,7 +246,7 @@ export const connectAllo = async ({
     apiKey,
     url: webhookUrl,
     topics: ALLO_WEBHOOK_TOPICS,
-    description: 'Twenty CRM',
+    description: describeAlloWebhook(workspaceUrl),
   });
 
   if (!endpoint.signingSecret) {
