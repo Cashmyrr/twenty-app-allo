@@ -102,6 +102,35 @@ afterEach(() => {
 });
 
 describe('push-to-dialer', () => {
+  it('counts the numbers Allo skipped by reason', async () => {
+    servePeople([person('p1'), person('p2')]);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        new Response(
+          JSON.stringify({
+            data: {
+              added: [],
+              skipped: [
+                { number: '+33612345678', reason: 'INVALID_PHONE_NUMBER' },
+                { number: '+33612345679', reason: 'INVALID_PHONE_NUMBER' },
+              ],
+            },
+          }),
+          { status: 200 },
+        ),
+      ),
+    );
+
+    const response = await send({ personIds: ['p1', 'p2'] });
+
+    expect(response.body).toMatchObject({
+      added: 0,
+      skippedByAllo: 2,
+      skippedReasons: { INVALID_PHONE_NUMBER: 2 },
+    });
+  });
+
   it("queues the selection into the caller's own queue", async () => {
     servePeople([person('p1'), person('p2')]);
 
@@ -112,6 +141,7 @@ describe('push-to-dialer', () => {
       selected: 2,
       added: 2,
       skippedByAllo: 0,
+      skippedReasons: {},
       withoutNumber: 0,
       notFound: 0,
     });

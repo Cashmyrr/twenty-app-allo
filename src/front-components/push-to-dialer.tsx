@@ -12,6 +12,7 @@ type PushResult = {
   selected?: number;
   added?: number;
   skippedByAllo?: number;
+  skippedReasons?: Record<string, number>;
   withoutNumber?: number;
   notFound?: number;
   error?: string;
@@ -25,8 +26,18 @@ export const formatPushResult = (result: PushResult): string => {
     parts.push(`${result.withoutNumber} without a number`);
   }
 
-  if ((result.skippedByAllo ?? 0) > 0) {
-    parts.push(`${result.skippedByAllo} refused by Allo`);
+  const reasons = Object.entries(result.skippedReasons ?? {});
+
+  if (reasons.length > 0) {
+    for (const [reason, count] of reasons) {
+      parts.push(
+        reason === 'INVALID_PHONE_NUMBER'
+          ? `${count} with an invalid number`
+          : `${count} skipped by Allo (${reason})`,
+      );
+    }
+  } else if ((result.skippedByAllo ?? 0) > 0) {
+    parts.push(`${result.skippedByAllo} skipped by Allo`);
   }
 
   if ((result.notFound ?? 0) > 0) {

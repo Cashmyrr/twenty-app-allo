@@ -9,7 +9,13 @@ export type DialerNumber = {
 };
 
 export type AppendResult =
-  | { ok: true; added: number; skipped: number }
+  | {
+      ok: true;
+      added: number;
+      skipped: number;
+      /** Skipped numbers counted by Allo's reason, e.g. INVALID_PHONE_NUMBER. */
+      skippedReasons: Record<string, number>;
+    }
   | { ok: false; status: number; error: string };
 
 type AppendInput = {
@@ -66,7 +72,7 @@ export const appendToDialingQueue = async ({
   }
 
   let payload: {
-    data?: { added?: unknown[]; skipped?: unknown[] };
+    data?: { added?: unknown[]; skipped?: { reason?: unknown }[] };
   } | null = null;
 
   try {
@@ -75,11 +81,21 @@ export const appendToDialingQueue = async ({
     return { ok: false, status: 502, error: 'Allo returned a non-JSON body' };
   }
 
+  const skipped = Array.isArray(payload?.data?.skipped)
+    ? payload.data.skipped
+    : [];
+  const skippedReasons: Record<string, number> = {};
+
+  for (const item of skipped) {
+    const reason = typeof item?.reason === 'string' ? item.reason : 'UNKNOWN';
+
+    skippedReasons[reason] = (skippedReasons[reason] ?? 0) + 1;
+  }
+
   return {
     ok: true,
     added: Array.isArray(payload?.data?.added) ? payload.data.added.length : 0,
-    skipped: Array.isArray(payload?.data?.skipped)
-      ? payload.data.skipped.length
-      : 0,
+    skipped: skipped.length,
+    skippedReasons,
   };
 };

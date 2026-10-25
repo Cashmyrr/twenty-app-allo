@@ -30,6 +30,8 @@ export type PushToDialerResult = {
   selected: number;
   added: number;
   skippedByAllo: number;
+  /** `skippedByAllo` broken down by Allo's reason. */
+  skippedReasons: Record<string, number>;
   withoutNumber: number;
   notFound: number;
 };
@@ -182,13 +184,14 @@ export const pushToDialerHandler = async (
   }
 
   console.log(
-    `[allo] queued ${result.added} number(s), ${result.skipped} skipped by Allo, ${withoutNumber} without a number, ${notFound} not found`,
+    `[allo] queued ${result.added} number(s), ${result.skipped} skipped by Allo ${JSON.stringify(result.skippedReasons)}, ${withoutNumber} without a number, ${notFound} not found`,
   );
 
   const response: PushToDialerResult = {
     selected,
     added: result.added,
     skippedByAllo: result.skipped,
+    skippedReasons: result.skippedReasons,
     withoutNumber,
     notFound,
   };

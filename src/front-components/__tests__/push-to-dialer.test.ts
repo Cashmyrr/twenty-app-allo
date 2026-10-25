@@ -14,10 +14,17 @@ describe('formatPushResult', () => {
         added: 180,
         withoutNumber: 40,
         skippedByAllo: 8,
+        skippedReasons: { INVALID_PHONE_NUMBER: 6, ALREADY_IN_QUEUE: 2 },
         notFound: 3,
       }),
     ).toBe(
-      'Power Dialer: 180 queued, 40 without a number, 8 refused by Allo, 3 not found.',
+      'Power Dialer: 180 queued, 40 without a number, 6 with an invalid number, 2 skipped by Allo (ALREADY_IN_QUEUE), 3 not found.',
+    );
+  });
+
+  it('still reports skipped numbers when Allo gives no reason', () => {
+    expect(formatPushResult({ added: 0, skippedByAllo: 1 })).toBe(
+      'Power Dialer: 0 queued, 1 skipped by Allo.',
     );
   });
 });

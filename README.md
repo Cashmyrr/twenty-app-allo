@@ -72,7 +72,7 @@ The Allo browser extension reads every phone number rendered on the page, not th
 
 1. Select people in any view, or use Select all.
 2. Open the command menu and run **Send to Power Dialer**.
-3. The result reports how many were queued, how many had no phone number, how many Allo refused, and how many you could not access.
+3. The result reports how many were queued, how many had no phone number, how many Allo skipped and why (an invalid number, for example), and how many you could not access.
 
 - The people go into your own queue, found from your Twenty login email. **Your Twenty email must also be your Allo email.**
 - The command runs with your permissions, so it only sends people you can see.
