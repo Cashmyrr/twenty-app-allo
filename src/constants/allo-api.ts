@@ -1,5 +1,9 @@
 export const ALLO_API_BASE_URL = 'https://api.withallo.com';
 
+/** Where a call opens in Allo's web app. The API sends no such link. */
+export const buildAlloCallWebUrl = (alloCallId: string): string =>
+  `https://web.withallo.com/calls?callId=${encodeURIComponent(alloCallId)}`;
+
 // Logic functions read application variables from `process.env`.
 export const ALLO_API_KEY_ENV_VAR_NAME = 'ALLO_API_KEY';
 

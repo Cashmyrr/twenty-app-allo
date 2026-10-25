@@ -208,3 +208,7 @@ export const PUSH_TO_DIALER_COMMAND_MENU_ITEM_UNIVERSAL_IDENTIFIER =
 // so it runs inside the workspace and checks the signature before queuing.
 export const ALLO_WEBHOOK_RECEIVER_LOGIC_FUNCTION_UNIVERSAL_IDENTIFIER =
   '35728017-a6b8-4388-bf26-ddd0c01f0d54';
+
+// Link from an Allo Call record to the call in Allo's web app.
+export const ALLO_CALL_ALLO_LINK_FIELD_UNIVERSAL_IDENTIFIER =
+  'd8265927-28a5-4955-a3f0-148fda4fead9';

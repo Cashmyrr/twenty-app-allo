@@ -1,3 +1,4 @@
+import { buildAlloCallWebUrl } from 'src/constants/allo-api';
 import {
   ALLO_CALL_DIRECTION_INBOUND,
   ALLO_CALL_DIRECTION_OUTBOUND,
@@ -367,6 +368,12 @@ const mapCompletedEvent = (data: AlloCallCompletedData): MappedAlloCall => {
       contactNumber,
     }),
     alloCallId: nonEmptyString(data.id),
+    alloLink: nonEmptyString(data.id)
+      ? {
+          primaryLinkUrl: buildAlloCallWebUrl(data.id as string),
+          primaryLinkLabel: 'Open in Allo',
+        }
+      : null,
     startedAt: asIsoOrNull(startedAt),
     endedAt,
     durationSeconds,

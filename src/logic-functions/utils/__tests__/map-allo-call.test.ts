@@ -171,6 +171,11 @@ describe('mapAlloCall', () => {
       primaryLinkUrl: 'https://storage.withallo.com/recordings/abc123.mp3',
       primaryLinkLabel: 'Recording',
     });
+    expect(mapped.fields.alloLink).toEqual({
+      primaryLinkUrl:
+        'https://web.withallo.com/calls?callId=cll_2NfDKEm9sF8xK3pQr1Zt',
+      primaryLinkLabel: 'Open in Allo',
+    });
     expect(mapped.fields.dataCollected).toEqual({ account_number: '12345' });
     expect(mapped.fields.ivrResult).toEqual([
       { dtmf_key: '2', text_key: 'Support' },

@@ -101,6 +101,13 @@ export const mapApiCall = (item: AlloApiCallItem): MappedApiCall | null => {
   const fields: Record<string, unknown> = {
     name: `${isOutbound ? 'Outbound call to' : 'Inbound call from'} ${counterpartName ?? contactNumber ?? 'unknown number'}`,
     alloCallId,
+    // Same link as the webhook builds (buildAlloCallWebUrl in src/constants).
+    alloLink: alloCallId
+      ? {
+          primaryLinkUrl: `https://web.withallo.com/calls?callId=${encodeURIComponent(alloCallId)}`,
+          primaryLinkLabel: 'Open in Allo',
+        }
+      : null,
     startedAt,
     endedAt,
     durationSeconds,

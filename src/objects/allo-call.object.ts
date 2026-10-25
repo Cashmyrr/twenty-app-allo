@@ -9,6 +9,7 @@ import {
 } from 'src/constants/allo-call-values';
 import {
   ALLO_CALL_ALLO_CALL_ID_FIELD_UNIVERSAL_IDENTIFIER,
+  ALLO_CALL_ALLO_LINK_FIELD_UNIVERSAL_IDENTIFIER,
   ALLO_CALL_ALLO_NUMBER_FIELD_UNIVERSAL_IDENTIFIER,
   ALLO_CALL_ALLO_PERSON_ID_FIELD_UNIVERSAL_IDENTIFIER,
   ALLO_CALL_ANSWERED_AT_FIELD_UNIVERSAL_IDENTIFIER,
@@ -84,6 +85,14 @@ export default defineObject({
       description:
         'Allo identifier of the call (cll_...). Only sent on call.completed.',
       icon: 'IconHash',
+    },
+    {
+      universalIdentifier: ALLO_CALL_ALLO_LINK_FIELD_UNIVERSAL_IDENTIFIER,
+      type: FieldType.LINKS,
+      name: 'alloLink',
+      label: 'Open in Allo',
+      description: "Opens the call in Allo's web app, once call.completed has arrived.",
+      icon: 'IconExternalLink',
     },
     {
       universalIdentifier: ALLO_CALL_CORRELATION_KEY_FIELD_UNIVERSAL_IDENTIFIER,

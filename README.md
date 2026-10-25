@@ -40,7 +40,7 @@ Allo sends several events per call. The app updates one record across all of the
 | `call.received` | Creates the record (inbound) | Ringing |
 | `call.triggered` | Creates the record (outbound) | Ringing |
 | `call.answered` | Adds the pickup time | In progress |
-| `call.completed` | Adds duration, recording, transcript, summary, tags, result, transfer and IVR details | Completed |
+| `call.completed` | Adds duration, recording, transcript, summary, tags, result, transfer and IVR details, and an **Open in Allo** link to the call in Allo's web app | Completed |
 | `tag.added`, `tag.removed` | Adds or removes the tag on the call | unchanged |
 
 - The status only moves forward. A late or retried event still adds its own fields but never moves a completed call back.
