@@ -1,4 +1,4 @@
-import { type CoreApiClient, type CoreSchema } from 'twenty-client-sdk/core';
+import { type CoreApiClient } from 'twenty-client-sdk/core';
 
 import {
   ALLO_CALL_STATUS_COMPLETED,
@@ -75,28 +75,32 @@ const findNearbyRecord = async (
   client: CoreApiClient,
   match: NearbyCallMatch,
 ): Promise<ExistingRecord | null> => {
-  const targetFilter: CoreSchema.AlloCallFilterInput[] =
+  const sameCall = [
+    { contactNumber: { eq: match.contactNumber } },
+    { alloNumber: { eq: match.alloNumber } },
+    { startedAt: { gte: match.startedFrom } },
+    { startedAt: { lte: match.startedTo } },
+  ];
+  const filter =
     match.target === 'lifecycle-record'
-      ? [
-          {
-            or: [{ alloCallId: { is: 'NULL' } }, { alloCallId: { eq: '' } }],
-          },
-          { status: { neq: ALLO_CALL_STATUS_COMPLETED } },
-        ]
-      : [{ alloCallId: { neq: '' } }];
+      ? {
+          and: [
+            ...sameCall,
+            {
+              or: [
+                { alloCallId: { is: 'NULL' as const } },
+                { alloCallId: { eq: '' } },
+              ],
+            },
+            { status: { neq: ALLO_CALL_STATUS_COMPLETED } } as const,
+          ],
+        }
+      : { and: [...sameCall, { alloCallId: { neq: '' } }] };
 
   const { alloCalls } = await client.query({
     alloCalls: {
       __args: {
-        filter: {
-          and: [
-            { contactNumber: { eq: match.contactNumber } },
-            { alloNumber: { eq: match.alloNumber } },
-            { startedAt: { gte: match.startedFrom } },
-            { startedAt: { lte: match.startedTo } },
-            ...targetFilter,
-          ],
-        },
+        filter,
         // The closest ring start before call.completed, or the closest
         // completed record after a late ring event.
         orderBy: [
