@@ -14,7 +14,7 @@ import alloCallCorrelationKeyIndex from 'src/indexes/allo-call-correlation-key.i
 import pushToDialerCommandMenuItem from 'src/command-menu-items/push-to-dialer.command-menu-item';
 import pushToDialerFrontComponent from 'src/front-components/push-to-dialer.front-component';
 import alloWebhook from 'src/logic-functions/allo-webhook';
-import alloWebhookResolver from 'src/logic-functions/allo-webhook-resolver';
+import alloWebhookReceiver from 'src/logic-functions/allo-webhook-receiver';
 import healthCheck from 'src/logic-functions/health-check';
 import pushToDialer from 'src/logic-functions/push-to-dialer';
 import alloConnect from 'src/logic-functions/allo-connect';
@@ -48,7 +48,7 @@ const definitions = {
   'allo-call-allo-call-id.index': alloCallIdIndex,
   'allo-call-correlation-key.index': alloCallCorrelationKeyIndex,
   'allo-webhook': alloWebhook,
-  'allo-webhook-resolver': alloWebhookResolver,
+  'allo-webhook-receiver': alloWebhookReceiver,
   'allo-connect': alloConnect,
   'allo-disconnect': alloDisconnect,
   'allo-connection-status': alloConnectionStatus,
@@ -139,11 +139,20 @@ describe('allo call object', () => {
 });
 
 describe('allo webhook', () => {
-  // A server route resolves the workspace from the payload. An `/s/` route
-  // resolves it from the request host, which a third-party webhook cannot set.
-  it('is reached only through the server-route resolver', () => {
-    expect(alloWebhookResolver.config.serverRouteTriggerSettings).toBeDefined();
-    expect(alloWebhookResolver.config.httpRouteTriggerSettings).toBeUndefined();
+  // The receiver is public because Allo cannot authenticate; it checks the
+  // signature itself. The function that writes has no trigger at all, so only
+  // a job queued by this app reaches it.
+  it('is reached only through the receiver route', () => {
+    expect(alloWebhookReceiver.config.httpRouteTriggerSettings).toMatchObject({
+      httpMethod: 'POST',
+      isAuthRequired: false,
+    });
+    expect(
+      alloWebhookReceiver.config.httpRouteTriggerSettings?.forwardedRequestHeaders,
+    ).toEqual(
+      expect.arrayContaining(['webhook-id', 'webhook-timestamp', 'webhook-signature']),
+    );
+    expect(alloWebhookReceiver.config.serverRouteTriggerSettings).toBeUndefined();
     expect(alloWebhook.config.serverRouteTriggerSettings).toBeUndefined();
     expect(alloWebhook.config.httpRouteTriggerSettings).toBeUndefined();
   });
@@ -166,7 +175,7 @@ describe('routes', () => {
   it('declares no cron', () => {
     for (const definition of [
       alloWebhook,
-      alloWebhookResolver,
+      alloWebhookReceiver,
       alloConnect,
       alloDisconnect,
       alloConnectionStatus,

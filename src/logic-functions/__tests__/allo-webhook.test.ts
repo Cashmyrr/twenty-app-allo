@@ -52,11 +52,10 @@ const receivedPayload = {
   },
 };
 
-
-// The resolver has already verified the signature; the target receives the
-// parsed event plus the registration it was dispatched for.
+// What allo-webhook-receiver queues once it has checked the signature.
 const handle = (event: unknown, deferredAttempt?: number) =>
   alloWebhookHandler({
+    kind: 'verified-delivery',
     registrationId: 'reg_1',
     webhookId: 'msg_1',
     event: event as never,

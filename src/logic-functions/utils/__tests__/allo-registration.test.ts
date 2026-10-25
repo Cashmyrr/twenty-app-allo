@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createMemoryKv } from 'src/__tests__/utils/create-memory-kv';
 import {
   ALLO_REGISTRATION_KV_KEY,
+  ALLO_WEBHOOK_PROBE_KV_KEY,
   getAlloRegistrationClaimKey,
 } from 'src/constants/allo-registration';
 import { ALLO_WEBHOOK_RESOLVER_LOGIC_FUNCTION_UNIVERSAL_IDENTIFIER } from 'src/constants/universal-identifiers';
@@ -24,21 +25,39 @@ const {
 } = await import('src/logic-functions/utils/allo-registration');
 
 const API_KEY = 'allo_key_1';
-const API_URL = 'https://crm.example.com';
+const BASE_URL = 'https://acme.withtwenty.com';
 
 type AlloRoute = { method: string; path: string };
 type AlloReply = { status: number; body?: unknown };
 
-/** Fakes Allo's webhook endpoints and records every request. */
+/**
+ * Fakes Allo's webhook endpoints and records every request to them. Any other
+ * host is this workspace's receiver, which echoes Connect's probe.
+ */
 const fakeAllo = (routes: (request: AlloRoute & { body: any }) => AlloReply) => {
   const requests: (AlloRoute & { body: any })[] = [];
 
   vi.stubGlobal(
     'fetch',
-    vi.fn(async (url: string, init: RequestInit) => {
+    vi.fn(async (input: string | URL, init: RequestInit) => {
+      const url = new URL(input);
+
+      if (url.host !== 'api.withallo.com') {
+        const expected = await memoryKv.get<string>(ALLO_WEBHOOK_PROBE_KV_KEY);
+        const echoed =
+          expected !== null &&
+          url.searchParams.get('probe') === expected &&
+          new Headers(init.headers).get('webhook-id') === expected &&
+          String(init.body).includes(expected);
+
+        return echoed
+          ? new Response(JSON.stringify({ probe: 'ok' }), { status: 200 })
+          : new Response(null, { status: 404 });
+      }
+
       const request = {
         method: init.method ?? 'GET',
-        path: new URL(url).pathname,
+        path: url.pathname,
         body: init.body ? JSON.parse(String(init.body)) : undefined,
       };
 
@@ -59,7 +78,7 @@ const fakeAllo = (routes: (request: AlloRoute & { body: any }) => AlloReply) => 
 const webhookBody = (overrides: Record<string, unknown> = {}) => ({
   data: {
     id: 'ep_new',
-    url: 'https://crm.example.com/webhooks/server/x',
+    url: 'https://acme.withtwenty.com/allo/webhook?registrationId=x',
     topics: ['call.completed'],
     enabled: true,
     signing_secret: 'whsec_c2VjcmV0',
@@ -67,25 +86,23 @@ const webhookBody = (overrides: Record<string, unknown> = {}) => ({
   },
 });
 
-const RESOLVER_PATH = `/webhooks/server/${ALLO_WEBHOOK_RESOLVER_LOGIC_FUNCTION_UNIVERSAL_IDENTIFIER}`;
-const OLD_WEBHOOK_URL = `${API_URL}${RESOLVER_PATH}?registrationId=reg_old`;
+const OLD_WEBHOOK_URL = `${BASE_URL}/allo/webhook?registrationId=reg_old`;
+// What 0.2.0 pre-releases registered: a server route shared by every workspace.
+const SERVER_ROUTE_WEBHOOK_URL = `https://api.twenty.com/webhooks/server/${ALLO_WEBHOOK_RESOLVER_LOGIC_FUNCTION_UNIVERSAL_IDENTIFIER}?registrationId=reg_old`;
 
 const seedRegistration = async ({
   apiKey = API_KEY,
   webhookUrl = OLD_WEBHOOK_URL,
-}: { apiKey?: string; webhookUrl?: string } = {}) => {
+  withoutSecret = false,
+}: { apiKey?: string; webhookUrl?: string; withoutSecret?: boolean } = {}) => {
   await memoryKv.set(ALLO_REGISTRATION_KV_KEY, {
     registrationId: 'reg_old',
     webhookId: 'ep_old',
     webhookUrl,
+    ...(withoutSecret ? {} : { signingSecret: 'whsec_b2xk' }),
     apiKeyFingerprint: fingerprintApiKey(apiKey),
     connectedAt: '2026-01-01T00:00:00.000Z',
   });
-  await memoryKv.set(
-    getAlloRegistrationClaimKey('reg_old'),
-    { workspaceId: 'ws_1', signingSecret: 'whsec_b2xk' },
-    { scope: 'SERVER' },
-  );
 };
 
 beforeEach(() => {
@@ -97,23 +114,24 @@ afterEach(() => {
 });
 
 describe('buildAlloWebhookUrl', () => {
-  it('targets the resolver server route and carries the registration id', () => {
+  it('targets the receiver route and carries the registration id', () => {
     expect(
-      buildAlloWebhookUrl({ apiUrl: `${API_URL}/`, registrationId: 'reg_1' }),
-    ).toBe(
-      `${API_URL}/webhooks/server/${ALLO_WEBHOOK_RESOLVER_LOGIC_FUNCTION_UNIVERSAL_IDENTIFIER}?registrationId=reg_1`,
-    );
+      buildAlloWebhookUrl({ baseUrl: `${BASE_URL}/`, registrationId: 'reg_1' }),
+    ).toBe(`${BASE_URL}/allo/webhook?registrationId=reg_1`);
   });
 
-  it('keeps a base path the server is mounted under', () => {
+  it('keeps the /s prefix of a server without a public function domain', () => {
     expect(
-      buildAlloWebhookUrl({ apiUrl: `${API_URL}/twenty`, registrationId: 'r' }),
-    ).toContain('/twenty/webhooks/server/');
+      buildAlloWebhookUrl({
+        baseUrl: 'https://crm.example.com/s',
+        registrationId: 'r',
+      }),
+    ).toBe('https://crm.example.com/s/allo/webhook?registrationId=r');
   });
 
   it('refuses a non-HTTPS server, which Allo cannot deliver to', () => {
     expect(() =>
-      buildAlloWebhookUrl({ apiUrl: 'http://localhost:2020', registrationId: 'r' }),
+      buildAlloWebhookUrl({ baseUrl: 'http://localhost:2020/s', registrationId: 'r' }),
     ).toThrow(/HTTPS/);
   });
 });
@@ -137,21 +155,19 @@ describe('connectAllo', () => {
 
     await connectAllo({
       apiKey: API_KEY,
-      apiUrl: API_URL,
-      workspaceId: 'ws_1',
+      webhookBaseUrl: BASE_URL,
       workspaceUrl: 'https://acme.twenty.com',
     });
 
     expect(requests[0].body.description).toBe('Twenty CRM (acme.twenty.com)');
   });
 
-  it('registers a webhook and stores the claim the resolver needs', async () => {
+  it('registers a webhook and keeps its secret in the workspace', async () => {
     const requests = fakeAllo(() => ({ status: 201, body: webhookBody() }));
 
     const result = await connectAllo({
       apiKey: API_KEY,
-      apiUrl: API_URL,
-      workspaceId: 'ws_1',
+      webhookBaseUrl: BASE_URL,
     });
 
     expect(result.outcome).toBe('connected');
@@ -162,27 +178,115 @@ describe('connectAllo', () => {
       expect.arrayContaining(['call.completed', 'tag.added', 'tag.removed']),
     );
 
-    const registration = await memoryKv.get<any>(ALLO_REGISTRATION_KV_KEY);
-    expect(registration).toMatchObject({
+    expect(await memoryKv.get(ALLO_REGISTRATION_KV_KEY)).toMatchObject({
       webhookId: 'ep_new',
       webhookUrl: result.webhookUrl,
+      signingSecret: 'whsec_c2VjcmV0',
       apiKeyFingerprint: fingerprintApiKey(API_KEY),
     });
+    // Nothing in the server scope, and the probe nonce is gone.
+    expect([...memoryKv.store.keys()]).toEqual([
+      `WORKSPACE:${ALLO_REGISTRATION_KV_KEY}`,
+    ]);
+  });
 
-    // The claim lives in the server scope, where the resolver can read it.
-    expect(
-      await memoryKv.get(getAlloRegistrationClaimKey(registration.registrationId), {
-        scope: 'SERVER',
+  it('creates nothing in Allo when its own URL does not answer the probe', async () => {
+    const alloCalls: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL) => {
+        const url = new URL(input);
+
+        if (url.host !== 'api.withallo.com') {
+          return new Response(null, { status: 404 });
+        }
+
+        alloCalls.push(url.pathname);
+
+        return new Response(JSON.stringify(webhookBody()), { status: 201 });
       }),
-    ).toEqual({ workspaceId: 'ws_1', signingSecret: 'whsec_c2VjcmV0' });
+    );
+
+    await expect(
+      connectAllo({ apiKey: API_KEY, webhookBaseUrl: BASE_URL }),
+    ).rejects.toThrow('does not reach this workspace (HTTP 404)');
+    expect(alloCalls).toHaveLength(0);
+    expect(memoryKv.store.size).toBe(0);
+  });
+
+  // Allo may reach a URL this server cannot reach from inside.
+  it('registers anyway when its own URL cannot be reached from the server', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL) => {
+        if (new URL(input).host !== 'api.withallo.com') {
+          throw new TypeError('fetch failed');
+        }
+
+        return new Response(JSON.stringify(webhookBody()), { status: 201 });
+      }),
+    );
+
+    const result = await connectAllo({ apiKey: API_KEY, webhookBaseUrl: BASE_URL });
+
+    expect(result.outcome).toBe('connected');
+    expect(await memoryKv.get(ALLO_WEBHOOK_PROBE_KV_KEY)).toBeNull();
+  });
+
+  it('moves a 0.2.0 pre-release webhook off the server route', async () => {
+    await seedRegistration({ webhookUrl: SERVER_ROUTE_WEBHOOK_URL });
+    await memoryKv.set(getAlloRegistrationClaimKey('reg_old'), 'ignored', {
+      scope: 'SERVER',
+    });
+    const requests = fakeAllo(({ method }) =>
+      method === 'GET'
+        ? {
+            status: 200,
+            body: webhookBody({ id: 'ep_old', url: SERVER_ROUTE_WEBHOOK_URL }),
+          }
+        : { status: method === 'DELETE' ? 204 : 201, body: webhookBody() },
+    );
+
+    const result = await connectAllo({ apiKey: API_KEY, webhookBaseUrl: BASE_URL });
+
+    expect(result.webhookUrl).toMatch(/^https:\/\/acme\.withtwenty\.com\/allo\/webhook\?/);
+    expect(requests.map((request) => request.method)).toEqual([
+      'GET',
+      'DELETE',
+      'POST',
+    ]);
+    expect(
+      await memoryKv.get(getAlloRegistrationClaimKey('reg_old'), { scope: 'SERVER' }),
+    ).toBeNull();
   });
 
   it('never stores the API key itself', async () => {
     fakeAllo(() => ({ status: 201, body: webhookBody() }));
 
-    await connectAllo({ apiKey: API_KEY, apiUrl: API_URL, workspaceId: 'ws_1' });
+    await connectAllo({ apiKey: API_KEY, webhookBaseUrl: BASE_URL });
 
     expect(JSON.stringify([...memoryKv.store.values()])).not.toContain(API_KEY);
+  });
+
+  it('re-creates a webhook whose signing secret was never stored', async () => {
+    await seedRegistration({ withoutSecret: true });
+    const requests = fakeAllo(({ method }) =>
+      method === 'GET'
+        ? { status: 200, body: webhookBody({ id: 'ep_old', url: OLD_WEBHOOK_URL }) }
+        : { status: method === 'DELETE' ? 204 : 201, body: webhookBody() },
+    );
+
+    const result = await connectAllo({
+      apiKey: API_KEY,
+      webhookBaseUrl: BASE_URL,
+    });
+
+    expect(result.outcome).toBe('connected');
+    expect(requests.map((request) => request.method)).toEqual([
+      'GET',
+      'DELETE',
+      'POST',
+    ]);
   });
 
   it('leaves a healthy registration untouched', async () => {
@@ -194,8 +298,7 @@ describe('connectAllo', () => {
 
     const result = await connectAllo({
       apiKey: API_KEY,
-      apiUrl: API_URL,
-      workspaceId: 'ws_1',
+      webhookBaseUrl: BASE_URL,
     });
 
     expect(result.outcome).toBe('already-connected');
@@ -209,21 +312,20 @@ describe('connectAllo', () => {
       status: 200,
       body: webhookBody({
         id: 'ep_old',
-        url: `https://CRM.example.com:443${RESOLVER_PATH}/?registrationId=reg_old`,
+        url: 'https://ACME.withtwenty.com:443/allo/webhook/?registrationId=reg_old',
       }),
     }));
 
     const result = await connectAllo({
       apiKey: API_KEY,
-      apiUrl: API_URL,
-      workspaceId: 'ws_1',
+      webhookBaseUrl: BASE_URL,
     });
 
     expect(result.outcome).toBe('already-connected');
     expect(requests).toHaveLength(1);
   });
 
-  it('re-creates the webhook when the server URL changed', async () => {
+  it('re-creates the webhook when the workspace URL changed', async () => {
     await seedRegistration();
     const requests = fakeAllo(({ method }) =>
       method === 'GET'
@@ -233,8 +335,7 @@ describe('connectAllo', () => {
 
     const result = await connectAllo({
       apiKey: API_KEY,
-      apiUrl: 'https://twenty.example.org',
-      workspaceId: 'ws_1',
+      webhookBaseUrl: 'https://renamed.withtwenty.com',
     });
 
     expect(result.outcome).toBe('connected');
@@ -255,8 +356,7 @@ describe('connectAllo', () => {
 
     const result = await connectAllo({
       apiKey: API_KEY,
-      apiUrl: API_URL,
-      workspaceId: 'ws_1',
+      webhookBaseUrl: BASE_URL,
     });
 
     expect(result.outcome).toBe('connected');
@@ -265,9 +365,6 @@ describe('connectAllo', () => {
       'DELETE',
       'POST',
     ]);
-    expect(
-      await memoryKv.get(getAlloRegistrationClaimKey('reg_old'), { scope: 'SERVER' }),
-    ).toBeNull();
   });
 
   it('re-creates a webhook Allo disabled after repeated failures', async () => {
@@ -285,7 +382,7 @@ describe('connectAllo', () => {
         : { status: method === 'DELETE' ? 204 : 201, body: webhookBody() },
     );
 
-    await connectAllo({ apiKey: API_KEY, apiUrl: API_URL, workspaceId: 'ws_1' });
+    await connectAllo({ apiKey: API_KEY, webhookBaseUrl: BASE_URL });
 
     expect(requests.map((request) => request.method)).toEqual([
       'GET',
@@ -304,8 +401,7 @@ describe('connectAllo', () => {
 
     const result = await connectAllo({
       apiKey: API_KEY,
-      apiUrl: API_URL,
-      workspaceId: 'ws_1',
+      webhookBaseUrl: BASE_URL,
     });
 
     expect(result.outcome).toBe('connected');
@@ -316,12 +412,17 @@ describe('connectAllo', () => {
     const requests = fakeAllo(({ method }) =>
       method === 'POST' ? { status: 201, body: webhookBody() } : { status: 204 },
     );
+    const originalSet = memoryKv.set;
     const set = vi
       .spyOn(memoryKv, 'set')
-      .mockRejectedValueOnce(new Error('kv unavailable'));
+      .mockImplementation((key, value, options) =>
+        key === ALLO_REGISTRATION_KV_KEY
+          ? Promise.reject(new Error('kv unavailable'))
+          : originalSet(key, value, options),
+      );
 
     await expect(
-      connectAllo({ apiKey: API_KEY, apiUrl: API_URL, workspaceId: 'ws_1' }),
+      connectAllo({ apiKey: API_KEY, webhookBaseUrl: BASE_URL }),
     ).rejects.toThrow('kv unavailable');
 
     expect(requests.map((request) => `${request.method} ${request.path}`)).toEqual([
@@ -341,7 +442,7 @@ describe('connectAllo', () => {
     );
 
     await expect(
-      connectAllo({ apiKey: API_KEY, apiUrl: API_URL, workspaceId: 'ws_1' }),
+      connectAllo({ apiKey: API_KEY, webhookBaseUrl: BASE_URL }),
     ).rejects.toThrow(/signing secret/);
 
     expect(requests.map((request) => request.method)).toEqual(['POST', 'DELETE']);
@@ -351,7 +452,7 @@ describe('connectAllo', () => {
     fakeAllo(() => ({ status: 403, body: { error: { code: 'FORBIDDEN' } } }));
 
     await expect(
-      connectAllo({ apiKey: API_KEY, apiUrl: API_URL, workspaceId: 'ws_1' }),
+      connectAllo({ apiKey: API_KEY, webhookBaseUrl: BASE_URL }),
     ).rejects.toMatchObject({ name: 'AlloApiError', status: 403 });
   });
 });
@@ -420,6 +521,14 @@ describe('getAlloConnectionStatus', () => {
       webhookUrl: OLD_WEBHOOK_URL,
     });
     expect(requests).toHaveLength(0);
+  });
+
+  it('flags a registration stored without its signing secret', async () => {
+    await seedRegistration({ withoutSecret: true });
+
+    expect((await getAlloConnectionStatus(API_KEY)).state).toBe(
+      'secret-missing',
+    );
   });
 
   it('detects a webhook deleted in Allo when asked to check', async () => {

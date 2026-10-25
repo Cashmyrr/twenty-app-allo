@@ -116,11 +116,16 @@ export type AlloWebhookEvent = {
   data?: AlloCallLifecycleData | AlloCallCompletedData | AlloTagData | null;
 };
 
-/** What the webhook resolver hands to `allo-webhook` in the target workspace. */
-export type AlloWebhookDispatchPayload = {
+/**
+ * What `allo-webhook` processes: a delivery `allo-webhook-receiver` has already
+ * checked against this workspace's signing secret, or one `allo-webhook`
+ * re-queued itself to retry later. Only this app's functions can queue it.
+ */
+export type AlloVerifiedDeliveryPayload = {
+  kind: 'verified-delivery';
   registrationId: string;
   webhookId: string | null;
   event: AlloWebhookEvent;
-  /** Set when a tag event is re-run because its call was not recorded yet. */
+  /** How many times this delivery has been put back in the queue. */
   deferredAttempt?: number;
 };

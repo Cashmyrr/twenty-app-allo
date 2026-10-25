@@ -16,6 +16,7 @@ vi.mock('twenty-client-sdk/metadata', () => ({
     query = async () => ({
       currentUser: { currentUserWorkspace: { permissionFlags } },
       currentWorkspace: {
+        subdomain: 'acme',
         workspaceUrls: { subdomainUrl: 'https://acme.twenty.com' },
       },
     });
@@ -30,28 +31,65 @@ const { alloConnectionStatusHandler } = await import(
   'src/logic-functions/allo-connection-status'
 );
 const { healthCheckHandler } = await import('src/logic-functions/health-check');
-
-const CONTEXT = {
-  retryCount: 0,
-  maxRetries: 0,
-  workspaceId: 'ws_1',
-  userWorkspaceId: 'uw_1',
-  workspaceMemberId: 'wm_1',
-};
+const { alloWebhookReceiverHandler } = await import(
+  'src/logic-functions/allo-webhook-receiver'
+);
 
 const alloRequests: string[] = [];
 let createdWebhook: Record<string, unknown> | null = null;
 
-/** Allo with one webhook endpoint that can be created, read and deleted. */
+const CLOUD_CONFIG = {
+  serverUrl: 'https://crm.example.com',
+  publicFunctionDomain: 'withtwenty.com',
+  isMultiWorkspaceEnabled: true,
+};
+let clientConfig: Record<string, unknown> = CLOUD_CONFIG;
+let workspaceReachable = true;
+
+/** Twenty's public function domain, serving the real receiver route. */
+const servePublicRoute = async (url: URL, init: RequestInit) => {
+  if (!workspaceReachable) {
+    return new Response(JSON.stringify({ error: 'Workspace not found' }), {
+      status: 404,
+    });
+  }
+
+  const result = (await alloWebhookReceiverHandler({
+    headers: Object.fromEntries(new Headers(init.headers).entries()),
+    queryStringParameters: Object.fromEntries(url.searchParams),
+    pathParameters: {},
+    body: null,
+    rawBody: String(init.body ?? ''),
+    isBase64Encoded: false,
+    requestContext: { http: { method: 'POST', path: url.pathname } },
+    userWorkspaceId: null,
+  } as never)) as unknown as { status: number; body: unknown };
+
+  return new Response(JSON.stringify(result.body), { status: result.status });
+};
+
+/**
+ * Allo with one webhook endpoint that can be created, read and deleted, plus
+ * the two Twenty URLs Connect reads: the client config and its own webhook.
+ */
 const fakeAllo = ({ status }: { status?: number } = {}) => {
   let endpoint: Record<string, unknown> | null = null;
 
   vi.stubGlobal(
     'fetch',
-    vi.fn(async (url: string, init: RequestInit) => {
+    vi.fn(async (input: string | URL, init: RequestInit = {}) => {
+      const url = new URL(input);
       const method = init.method ?? 'GET';
 
-      alloRequests.push(`${method} ${new URL(url).pathname}`);
+      if (url.pathname === '/client-config') {
+        return new Response(JSON.stringify(clientConfig), { status: 200 });
+      }
+
+      if (url.host !== 'api.withallo.com') {
+        return servePublicRoute(url, init);
+      }
+
+      alloRequests.push(`${method} ${url.pathname}`);
 
       if (status !== undefined) {
         return new Response(JSON.stringify({ error: {} }), { status });
@@ -85,12 +123,14 @@ const fakeAllo = ({ status }: { status?: number } = {}) => {
   );
 };
 
-const connect = () => alloConnectHandler({}, CONTEXT);
+const connect = () => alloConnectHandler();
 
 beforeEach(() => {
   memoryKv.store.clear();
   alloRequests.length = 0;
   createdWebhook = null;
+  clientConfig = CLOUD_CONFIG;
+  workspaceReachable = true;
   permissionFlags = ['APPLICATIONS'];
   process.env.ALLO_API_KEY = 'allo_key_1';
   process.env.TWENTY_API_URL = 'https://crm.example.com';
@@ -114,6 +154,45 @@ describe('connect', () => {
     expect(await alloConnectionStatusHandler()).toMatchObject({
       state: 'connected',
     });
+  });
+
+  // Twenty picks the workspace from the host, so the receiver runs where the
+  // secret is and can refuse a bad signature on the spot.
+  it('points the webhook at the workspace on the public function domain', async () => {
+    await connect();
+
+    expect(createdWebhook?.url).toMatch(
+      /^https:\/\/acme\.withtwenty\.com\/allo\/webhook\?registrationId=[0-9a-f-]{36}$/,
+    );
+  });
+
+  it('uses the /s/ route of a single-workspace server', async () => {
+    clientConfig = {
+      serverUrl: 'https://crm.example.com',
+      publicFunctionDomain: null,
+      isMultiWorkspaceEnabled: false,
+    };
+
+    await connect();
+
+    expect(createdWebhook?.url).toMatch(
+      /^https:\/\/crm\.example\.com\/s\/allo\/webhook\?registrationId=/,
+    );
+  });
+
+  it('touches nothing in Allo when the URL does not reach this workspace', async () => {
+    await connect();
+    const before = await memoryKv.get(ALLO_REGISTRATION_KV_KEY);
+    process.env.ALLO_API_KEY = 'allo_key_2';
+    workspaceReachable = false;
+    alloRequests.length = 0;
+
+    expect(await connect()).toEqual({
+      success: false,
+      error: expect.stringContaining('does not reach this workspace'),
+    });
+    expect(alloRequests).toEqual([]);
+    expect(await memoryKv.get(ALLO_REGISTRATION_KV_KEY)).toEqual(before);
   });
 
   it('names the workspace in the webhook description', async () => {
@@ -156,7 +235,11 @@ describe('connect', () => {
   });
 
   it('refuses a server that is not reachable over HTTPS', async () => {
-    process.env.TWENTY_API_URL = 'http://localhost:2020';
+    clientConfig = {
+      serverUrl: 'http://localhost:2020',
+      publicFunctionDomain: null,
+      isMultiWorkspaceEnabled: false,
+    };
 
     expect(await connect()).toEqual({
       success: false,

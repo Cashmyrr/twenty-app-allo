@@ -21,7 +21,7 @@ src/
 ├── roles/default-role.ts                 read + update, never delete
 ├── types/                                Allo payloads, registration records
 └── logic-functions/
-    ├── allo-webhook-resolver.ts          public server route: verify, then dispatch
+    ├── allo-webhook-receiver.ts          public route on the workspace's domain: verify, then queue
     ├── allo-webhook.ts                   writes one delivery in the target workspace
     ├── allo-connect.ts                   POST /s/allo/connect: register or repair the webhook
     ├── allo-disconnect.ts                POST /s/allo/disconnect
@@ -37,37 +37,47 @@ scripts/                                  optional history backfill, not part of
 ## Webhook flow
 
 ```
-Allo ──POST /webhooks/server/<resolver uuid>?registrationId=R──▶ allo-webhook-resolver   (owner workspace)
-                                                                       │ claim R → { workspaceId, signingSecret }   (server-scoped kv)
-                                                                       │ verify signature, parse, filter topics
-                                                                       ▼
-                                                              allo-webhook                (target workspace, queued)
-                                                                       │ registration still R?                    (workspace-scoped kv)
+Allo ──POST https://<workspace>.<public function domain>/allo/webhook?registrationId=R──▶ allo-webhook-receiver   (this workspace)
+                                                                       │ registration is R?                           (workspace-scoped kv)
+                                                                       │ verify signature with its secret, else 401
+                                                                       │ parse, filter topics
+                                                                       ▼ enqueueJobs
+                                                              allo-webhook                (this workspace, queued)
+                                                                       │ registration still R?
                                                                        ▼
                                                               map → resolve links → upsert Allo Call
 ```
 
-**Why a server route.** A Twenty app installed on a multi-workspace server shares one URL across every workspace. An `/s/` HTTP route resolves the workspace from the request host, which a third-party webhook cannot set. A server route runs a resolver that picks the workspace from the request.
+**Why an HTTP route on the workspace's domain.** Twenty resolves the workspace of an HTTP route from the request host (`resolveWorkspaceAndPublicDomain` in Twenty's route trigger), and the host is part of the URL the app gives Allo. So the receiver runs inside the workspace that registered the webhook, reads its signing secret from the workspace key-value store, and refuses a bad signature with `401` before anything is queued. The secret never leaves the workspace.
 
-**Why the resolver verifies the signature.** The resolver can read server-scoped storage, so it holds each registration's secret and answers `401` synchronously. Unsigned traffic never reaches the job queue.
+`pickWebhookBaseUrl` (`utils/resolve-webhook-base-url.ts`) builds the host from the public `/client-config` and `currentWorkspace`:
 
-**What Allo sees.** `400` for a missing registration id, body or invalid JSON, `401` for a bad signature, `404` for an unknown registration, `200 {"ignored": true}` for topics the app does not handle, and `200 {"queued": true}` once dispatched.
+| Server | Webhook URL |
+| --- | --- |
+| Twenty Cloud, or any server with a public function domain | `https://<subdomain>.<publicFunctionDomain>/allo/webhook` |
+| Single workspace | `<serverUrl>/s/allo/webhook`: every host resolves to the one workspace |
+| Multi-workspace, no public function domain | `<workspace subdomain URL>/s/allo/webhook` |
+
+Twenty is phasing out the `/s/` form for new functions on servers with a public function domain, which is why that domain comes first.
+
+Before handing a URL to Allo, `allo-connect` posts a one-time nonce to it (`?probe=`, stored for the duration of the call) and expects the receiver to echo it. A URL that does not reach this app in this workspace fails Connect and leaves Allo untouched, instead of becoming a webhook that fails every delivery.
+
+**Why 0.2.0 pre-releases used a server route.** They sent every delivery to one server route (`/webhooks/server/<resolver uuid>`), which ran in the app's owner workspace and dispatched to the right one. That route could not check signatures: Twenty's server-scoped key-value store is a claim registry that stores only which workspace set a key, so no secret can reach it. The resolver is gone, its identifier is retired, and Connect moves such a webhook to the receiver.
+
+**What Allo sees.** `400` for a missing registration id, body or invalid JSON; `401` for a missing or wrong signature, or a timestamp outside the 5-minute window; `404` for a registration this workspace does not hold; `500` while the registration has no signing secret or when the job cannot be queued, so Allo keeps the delivery and retries; `200 {"ignored": true}` for topics the app does not handle; `200 {"queued": true}` once queued.
+
+`allo-webhook` has no trigger, so only a job this app queued reaches it, and it only ever receives verified, parsed events (`kind: 'verified-delivery'`).
 
 **Retries are the app's job.** Once a delivery is dispatched, Allo has its 200 and never sends it again. Twenty's queue retries a run that throws `RetryableLogicFunctionError` at most 3 times, about 1, 2 and 4 seconds apart. That is too short for a Twenty outage, or for a `tag.added` that beats the `call.completed` Allo sends about 30 seconds after hangup. So when a write fails, or a tag's call is not recorded yet, `allo-webhook` re-queues the same delivery with `enqueueJobs` after 1 min, 5 min, 30 min, 2 h and 6 h (`ALLO_DELIVERY_RETRY_DELAYS_MS`), then gives up. Allo's own retries would have lasted about 27 hours.
 
 **Why the target checks the registration again.** A delivery dispatched just before a disconnect must not write into a workspace that has since disconnected.
-
-**URL form.** The URL uses the resolver's `universalIdentifier`. Twenty also accepts the resolver's metadata id, but that id only exists in the app's owner workspace, so an installed copy cannot know it. Every official Twenty app builds its URL the same way. Two limits come with it:
-
-- Twenty marks this form as deprecated (it answers with a `Deprecation` header). Follow the official apps when they move.
-- Twenty refuses the form when more than one application registration on the server claims the same resolver, for example the same app deployed separately from two workspaces of one self-hosted server. Then every webhook on that server fails. Install from a single registration (the marketplace or one deploy).
 
 ## Registration
 
 The app's **Settings** tab (`front-components/allo-settings.tsx`) owns the connection:
 
 - **Connect** saves the API key, if a new one was typed, through Twenty's metadata API (the same call as the built-in variables tab), then calls `allo-connect`.
-- `allo-connect` is idempotent. When the current registration is healthy (same key fingerprint, webhook exists and is enabled in Allo, pointing at this server, claim present) it only reads it. Otherwise it deletes the old webhook if it can, creates one with a fresh `registrationId`, and stores the claim (server scope) and the registration (workspace scope). If storing fails, the new webhook is deleted. So Connect is also the repair.
+- `allo-connect` is idempotent. When the current registration is healthy (same key fingerprint, webhook exists and is enabled in Allo, pointing at this workspace's current URL, signing secret stored) it only reads it. Otherwise it probes the new URL, deletes the old webhook if it can, creates one with a fresh `registrationId`, and stores the registration with its signing secret in the workspace scope. If storing fails, the new webhook is deleted. So Connect is also the repair.
 - **Disconnect** deletes the webhook in Allo and forgets the registration. Uninstall does the same.
 - Opening the tab calls `allo-connection-status`, which asks Allo once whether the webhook still exists. Nothing polls in the background.
 - The health check reads local state only and never calls Allo. Its actions carry no `location`, so Twenty opens the app's configuration tab, which is the Settings tab.
@@ -108,9 +118,9 @@ Twenty matches local definitions to installed metadata by `universalIdentifier`.
 | Layer | Where | Needs a server |
 | --- | --- | --- |
 | Definitions validate, identifiers are unique UUID v4, relations point at each other | `src/__tests__/definitions.test.ts` | no |
-| Signature, mapping, upsert, links, registration, resolver, target, connect/disconnect/status, health check, dialer, settings tab texts | `src/**/__tests__/*.test.ts` | no |
+| Signature, mapping, upsert, links, registration, webhook URL, receiver, target, connect/disconnect/status, health check, dialer, settings tab texts | `src/**/__tests__/*.test.ts` | no |
 | Metadata syncs, GraphQL names and filter shapes are valid, ilike escaping works on a real server | `src/__tests__/*.integration-test.ts` | yes |
 
 The unit tests replace `CoreApiClient`, `kv` and `fetch` with fakes (`src/__tests__/utils/`). Nothing in the test suite calls Allo.
 
-What no automated test covers yet: a real Allo delivery through the server route and the queue. Check it by hand after a change to the webhook flow (see CONTRIBUTING.md).
+What no automated test covers yet: a real Allo delivery through the receiver route and the queue. Check it by hand after a change to the webhook flow (see CONTRIBUTING.md).

@@ -95,15 +95,18 @@ yarn backfill:last-call --apply
 
 ## Security
 
-- Every delivery is checked against Allo's signature before anything is written: HMAC-SHA256 under the Standard Webhooks scheme, compared in constant time, within a 5-minute replay window. Several `v1,` signatures are accepted during a secret rotation.
-- Each workspace has its own webhook URL and its own signing secret, so one workspace's secret cannot write into another workspace.
-- Unsigned or wrongly signed requests are answered `401` before any job is queued.
+- Every delivery is checked against Allo's signature before anything is queued: HMAC-SHA256 under the Standard Webhooks scheme, compared in constant time, within a 5-minute replay window. Several `v1,` signatures are accepted during a secret rotation. Unsigned or wrongly signed requests are answered `401`.
+- Each workspace has its own webhook URL, on its own domain, and its own signing secret. The webhook runs inside that workspace, so one workspace's secret cannot write into another.
+- The webhook URL carries a random registration id. A request for an id the workspace does not hold is answered `404`.
+- The signing secret is kept in the workspace's app key-value store, which only this app's functions can read. Twenty stores those values unencrypted, unlike secret variables.
 - Webhook writes run under the app's role, which can read and update records but never delete them.
 - The API key is never stored outside its secret variable. The app keeps only a hash of it to detect a key change.
 
 See [SECURITY.md](SECURITY.md) to report a vulnerability.
 
 ## Self-hosted Twenty
+
+Allo reaches each workspace on its own host: the public function domain when the server has one, otherwise `<server>/s/allo/webhook` on a single-workspace server, or the workspace's subdomain on a multi-workspace one. That host must be reachable from the internet over HTTPS. Connect checks it before creating anything in Allo.
 
 Logic functions are disabled by default when `NODE_ENV=production`. Set `LOGIC_FUNCTION_TYPE` (`LAMBDA` or `LOCAL`) on both the server and the worker, or the webhook answers `403 LOGIC_FUNCTION_DISABLED`. With `LOCAL`, function code runs in a child process on the Twenty host that inherits the server's environment, so prefer `LAMBDA` on a shared instance.
 

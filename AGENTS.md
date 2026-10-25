@@ -2,7 +2,7 @@
 
 ## This app
 
-- Read [docs/architecture.md](docs/architecture.md) first. It explains the webhook flow (public resolver, then a queued target per workspace), the registration stored in the key-value store, and the design decisions behind them.
+- Read [docs/architecture.md](docs/architecture.md) first. It explains the webhook flow (a public receiver route on each workspace's domain, then a queued target), the registration stored in the key-value store, and the design decisions behind them.
 - `src/constants/universal-identifiers.ts` is append-only. Never edit or reuse an existing identifier.
 - Keep handlers thin and export them; logic lives in `src/logic-functions/utils/` with unit tests next to it in `__tests__/`.
 - Unit tests must never call Allo or a Twenty server. Use the fakes in `src/__tests__/utils/` (`createMemoryKv`, `buildSignedRoutePayload`) and stub `fetch`.

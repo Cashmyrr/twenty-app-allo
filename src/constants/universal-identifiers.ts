@@ -133,8 +133,9 @@ export const ALLO_CALL_CORRELATION_KEY_INDEX_UNIVERSAL_IDENTIFIER =
 export const ALLO_CALL_CORRELATION_KEY_INDEX_FIELD_UNIVERSAL_IDENTIFIER =
   'b1e0b12a-f2fa-4996-b99c-0126ab0e4b33';
 
-// Webhook: a public server route resolves the workspace, then dispatches the
-// event to the processing function inside that workspace.
+// Webhook. The resolver was a public server route shared by every workspace; it
+// is retired in favour of ALLO_WEBHOOK_RECEIVER_LOGIC_FUNCTION_UNIVERSAL_IDENTIFIER
+// and its identifier must not be reused.
 export const ALLO_WEBHOOK_RESOLVER_LOGIC_FUNCTION_UNIVERSAL_IDENTIFIER =
   'f9693cfb-0732-4707-8586-2b1134dfc0cd';
 export const ALLO_WEBHOOK_LOGIC_FUNCTION_UNIVERSAL_IDENTIFIER =
@@ -202,3 +203,8 @@ export const PUSH_TO_DIALER_FRONT_COMPONENT_UNIVERSAL_IDENTIFIER =
   'c11ee7bf-e050-4566-adc0-02a87c0d1414';
 export const PUSH_TO_DIALER_COMMAND_MENU_ITEM_UNIVERSAL_IDENTIFIER =
   '4f4941df-d196-45d8-acbb-96ebca05c41b';
+
+// Webhook receiver: a public HTTP route served on each workspace's own domain,
+// so it runs inside the workspace and checks the signature before queuing.
+export const ALLO_WEBHOOK_RECEIVER_LOGIC_FUNCTION_UNIVERSAL_IDENTIFIER =
+  '35728017-a6b8-4388-bf26-ddd0c01f0d54';

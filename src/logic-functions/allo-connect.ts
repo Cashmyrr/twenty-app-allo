@@ -1,5 +1,4 @@
 import { defineLogicFunction } from 'twenty-sdk/define';
-import { type LogicFunctionExecutionContext } from 'twenty-sdk/logic-function';
 
 import {
   ALLO_API_KEY_ENV_VAR_NAME,
@@ -10,6 +9,7 @@ import { connectAllo } from 'src/logic-functions/utils/allo-registration';
 import { currentUserCanManageApps } from 'src/logic-functions/utils/current-user-can-manage-apps';
 import { describeAlloError } from 'src/logic-functions/utils/describe-allo-error';
 import { readWorkspaceUrl } from 'src/logic-functions/utils/read-workspace-url';
+import { resolveWebhookBaseUrl } from 'src/logic-functions/utils/resolve-webhook-base-url';
 
 export type AlloConnectResponse =
   | {
@@ -24,10 +24,7 @@ export type AlloConnectResponse =
  * the settings tab right after it saves the API key, so the key is read from
  * the variable rather than taken from the request.
  */
-export const alloConnectHandler = async (
-  _event: unknown,
-  context: LogicFunctionExecutionContext,
-): Promise<AlloConnectResponse> => {
+export const alloConnectHandler = async (): Promise<AlloConnectResponse> => {
   if (!(await currentUserCanManageApps())) {
     return {
       success: false,
@@ -49,8 +46,7 @@ export const alloConnectHandler = async (
   try {
     const result = await connectAllo({
       apiKey,
-      apiUrl,
-      workspaceId: context.workspaceId,
+      webhookBaseUrl: await resolveWebhookBaseUrl(apiUrl),
       workspaceUrl: await readWorkspaceUrl(),
     });
 

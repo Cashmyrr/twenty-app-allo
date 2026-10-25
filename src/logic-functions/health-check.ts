@@ -44,6 +44,14 @@ export const healthCheckHandler =
             'The webhook was registered with a different API key. Connect again to use the current one.',
           action: { label: 'Reconnect' },
         };
+      case 'secret-missing':
+        return {
+          status: 'ERROR',
+          title: 'Allo deliveries cannot be verified',
+          description:
+            'The webhook signing secret is missing, so every call event is rejected. Connect again to re-create the webhook.',
+          action: { label: 'Reconnect' },
+        };
     }
   };
 

@@ -14,7 +14,9 @@ export const ALLO_WEBHOOK_TOPICS = [
   'tag.removed',
 ] as const;
 
-// HTTP routes, served under /s/<path> and reached by the front components.
+// HTTP routes. The front components reach them under /s/<path>; Allo reaches
+// the webhook route on the workspace's public function domain.
+export const ALLO_WEBHOOK_ROUTE_PATH = '/allo/webhook';
 export const ALLO_CONNECT_ROUTE_PATH = '/allo/connect';
 export const ALLO_DISCONNECT_ROUTE_PATH = '/allo/disconnect';
 export const ALLO_CONNECTION_STATUS_ROUTE_PATH = '/allo/connection-status';

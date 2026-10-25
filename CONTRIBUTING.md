@@ -43,7 +43,7 @@ CI runs all of them on every pull request, against a pinned Twenty version.
 
 ## Testing a webhook change by hand
 
-Unit tests cover the resolver and the target separately. After a change to the webhook flow, also check a real delivery:
+Unit tests cover the receiver and the target separately. After a change to the webhook flow, also check a real delivery:
 
 1. Install the app on an HTTPS Twenty server.
 2. In the app's Settings tab, paste a test Allo API key and click Connect.

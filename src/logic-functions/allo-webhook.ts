@@ -7,7 +7,7 @@ import {
 
 import { ALLO_DELIVERY_RETRY_DELAYS_MS } from 'src/constants/allo-api';
 import { ALLO_WEBHOOK_LOGIC_FUNCTION_UNIVERSAL_IDENTIFIER } from 'src/constants/universal-identifiers';
-import { type AlloWebhookDispatchPayload } from 'src/types/allo-webhook.type';
+import { type AlloVerifiedDeliveryPayload } from 'src/types/allo-webhook.type';
 import { readAlloRegistration } from 'src/logic-functions/utils/allo-registration';
 import {
   processAlloEvent,
@@ -20,7 +20,7 @@ import {
  * too soon for a Twenty outage or for a call.completed sent ~30s after hangup.
  */
 const deferDelivery = async (
-  payload: AlloWebhookDispatchPayload,
+  payload: AlloVerifiedDeliveryPayload,
 ): Promise<number | null> => {
   const attempt = payload.deferredAttempt ?? 0;
   const delayMs = ALLO_DELIVERY_RETRY_DELAYS_MS[attempt];
@@ -40,25 +40,25 @@ const deferDelivery = async (
 };
 
 /**
- * Writes one Allo delivery into this workspace. Reached only through
- * `allo-webhook-resolver`, which has already verified the signature.
+ * Writes one Allo delivery into this workspace. Queued only by
+ * `allo-webhook-receiver`, once it has checked the signature, or by itself to
+ * retry later. It has no trigger of its own, so no request reaches it directly.
  */
 export const alloWebhookHandler = async (
-  payload: AlloWebhookDispatchPayload,
+  delivery: AlloVerifiedDeliveryPayload,
 ): Promise<
   | ProcessAlloEventResult
   | { kind: 'stale-registration' }
   | { kind: 'deferred'; alloCallId: string; delayMs: number }
   | { kind: 'retry-scheduled'; topic: string | null; delayMs: number }
 > => {
-  // The resolver read a server-wide claim. Check it still belongs to the
-  // registration this workspace holds, so a delivery dispatched just before a
-  // disconnect does not write into a workspace that opted out.
+  // A delivery queued just before a disconnect or a reconnect must not write
+  // into a workspace that no longer holds its registration.
   const registration = await readAlloRegistration();
 
-  if (registration?.registrationId !== payload?.registrationId) {
+  if (!registration || registration.registrationId !== delivery?.registrationId) {
     console.warn(
-      `[allo] delivery ${payload?.webhookId ?? '?'} for a registration this workspace no longer holds, ignored`,
+      '[allo] delivery for a registration this workspace no longer holds, ignored',
     );
 
     return { kind: 'stale-registration' };
@@ -71,17 +71,17 @@ export const alloWebhookHandler = async (
   let result: ProcessAlloEventResult;
 
   try {
-    result = await processAlloEvent(client, payload.event);
+    result = await processAlloEvent(client, delivery.event);
   } catch (error) {
     // The upsert is idempotent, so a retry converges on the same record.
-    const message = `Failed to persist Allo ${payload.event?.topic ?? 'event'}: ${error instanceof Error ? error.message : String(error)}`;
+    const message = `Failed to persist Allo ${delivery.event?.topic ?? 'event'}: ${error instanceof Error ? error.message : String(error)}`;
 
     console.error(`[allo] ${message}`, error);
 
     let delayMs: number | null;
 
     try {
-      delayMs = await deferDelivery(payload);
+      delayMs = await deferDelivery(delivery);
     } catch {
       // Twenty cannot even queue a job: let its own retries have a go.
       throw new RetryableLogicFunctionError(message);
@@ -91,14 +91,14 @@ export const alloWebhookHandler = async (
       throw new Error(`${message}. Giving up after every retry.`);
     }
 
-    return { kind: 'retry-scheduled', topic: payload.event?.topic ?? null, delayMs };
+    return { kind: 'retry-scheduled', topic: delivery.event?.topic ?? null, delayMs };
   }
 
   if (result.kind === 'tag' && result.outcome === 'call-not-found') {
     // Allo does not order deliveries: a tag can land before the call.completed
     // that creates the record. Try again later before concluding the call
     // predates the app.
-    const delayMs = await deferDelivery(payload);
+    const delayMs = await deferDelivery(delivery);
 
     if (delayMs !== null) {
       return { kind: 'deferred', alloCallId: result.alloCallId, delayMs };

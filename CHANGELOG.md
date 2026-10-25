@@ -11,7 +11,7 @@ First public release.
 ### Breaking
 
 - **The webhook is now registered by the app.** Paste an API key with the `WEBHOOKS_READ_WRITE` scope in the new Settings tab and click Connect. The `ALLO_WEBHOOK_SECRET` and `ALLO_PUBLIC_BASE_URL` variables are gone.
-- **The webhook URL changed.** Deliveries go to `/webhooks/server/<resolver>?registrationId=...`, routed to the workspace that registered them. The URL from 0.1.0 no longer works.
+- **The webhook URL changed.** Deliveries go to each workspace's own domain, `https://<workspace>.<public function domain>/allo/webhook?registrationId=...` on Twenty Cloud, where the signature is checked before anything is queued. The URL from 0.1.0 no longer works.
 
 ### Upgrading from 0.1.0
 

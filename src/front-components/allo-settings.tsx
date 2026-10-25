@@ -41,6 +41,8 @@ export const describeConnectionStatus = (
       return 'The API key changed since the webhook was registered. Connect again to use the new key.';
     case 'webhook-missing':
       return 'The webhook was deleted or disabled in Allo, so calls are not syncing. Connect again to re-create it.';
+    case 'secret-missing':
+      return 'The webhook signing secret is missing, so calls are not syncing. Connect again to re-create the webhook.';
     case 'unknown':
       return `Could not check the connection: ${status.error}`;
   }
@@ -164,6 +166,7 @@ const AlloSettings = () => {
   const isRegistered =
     state === 'connected' ||
     state === 'webhook-missing' ||
+    state === 'secret-missing' ||
     state === 'api-key-changed';
   const hasApiKey = state !== undefined && state !== 'missing-api-key';
   const canConnect =

@@ -2,16 +2,19 @@ import { createHash, randomUUID } from 'node:crypto';
 
 import { kv } from 'twenty-sdk/logic-function';
 
-import { ALLO_WEBHOOK_TOPICS } from 'src/constants/allo-api';
+import {
+  ALLO_WEBHOOK_ROUTE_PATH,
+  ALLO_WEBHOOK_TOPICS,
+} from 'src/constants/allo-api';
 import {
   ALLO_REGISTRATION_KV_KEY,
   ALLO_REGISTRATION_QUERY_PARAMETER,
+  ALLO_WEBHOOK_PROBE_KV_KEY,
+  ALLO_WEBHOOK_PROBE_QUERY_PARAMETER,
   getAlloRegistrationClaimKey,
 } from 'src/constants/allo-registration';
-import { ALLO_WEBHOOK_RESOLVER_LOGIC_FUNCTION_UNIVERSAL_IDENTIFIER } from 'src/constants/universal-identifiers';
 import {
   type AlloConnectionStatus,
-  type AlloRegistrationClaim,
   type AlloWorkspaceRegistration,
 } from 'src/types/allo-registration.type';
 import {
@@ -20,34 +23,31 @@ import {
   getAlloWebhook,
 } from 'src/logic-functions/utils/allo-webhooks-api';
 
-const SERVER_SCOPE = { scope: 'SERVER' } as const;
-
 /** Detects a key change without keeping the key anywhere but its variable. */
 export const fingerprintApiKey = (apiKey: string): string =>
   createHash('sha256').update(apiKey).digest('hex').slice(0, 16);
 
 /**
- * Every official Twenty app builds its server-route URL from the resolver's
- * universalIdentifier. The server also accepts the resolver's metadata id, but
- * that id only exists in the owner workspace, so no installed copy can know it.
+ * The receiver route on this workspace's public base URL (see
+ * `pickWebhookBaseUrl`), tagged with the registration it belongs to.
  */
 export const buildAlloWebhookUrl = ({
-  apiUrl,
+  baseUrl,
   registrationId,
 }: {
-  apiUrl: string;
+  baseUrl: string;
   registrationId: string;
 }): string => {
-  const url = new URL(apiUrl);
+  const url = new URL(baseUrl);
 
   // Allo refuses anything that is not public HTTPS.
   if (url.protocol !== 'https:') {
     throw new Error(
-      `Allo only delivers to HTTPS URLs, and this Twenty server is ${url.origin}.`,
+      `Allo only delivers to HTTPS URLs, and this workspace is served at ${url.origin}.`,
     );
   }
 
-  url.pathname = `${url.pathname.replace(/\/+$/, '')}/webhooks/server/${ALLO_WEBHOOK_RESOLVER_LOGIC_FUNCTION_UNIVERSAL_IDENTIFIER}`;
+  url.pathname = `${url.pathname.replace(/\/+$/, '')}${ALLO_WEBHOOK_ROUTE_PATH}`;
   url.search = '';
   url.hash = '';
   url.searchParams.set(ALLO_REGISTRATION_QUERY_PARAMETER, registrationId);
@@ -97,14 +97,6 @@ export const readAlloRegistration =
   (): Promise<AlloWorkspaceRegistration | null> =>
     kv.get<AlloWorkspaceRegistration>(ALLO_REGISTRATION_KV_KEY);
 
-export const readAlloRegistrationClaim = (
-  registrationId: string,
-): Promise<AlloRegistrationClaim | null> =>
-  kv.get<AlloRegistrationClaim>(
-    getAlloRegistrationClaimKey(registrationId),
-    SERVER_SCOPE,
-  );
-
 /**
  * Local only, no Allo request. With `checkAllo`, also asks Allo whether the
  * webhook still exists: one request, made when someone opens the settings tab.
@@ -127,6 +119,10 @@ export const getAlloConnectionStatus = async (
     return { state: 'api-key-changed' };
   }
 
+  if (!registration.signingSecret) {
+    return { state: 'secret-missing' };
+  }
+
   if (checkAllo) {
     const endpoint = await getAlloWebhook({
       apiKey,
@@ -146,8 +142,62 @@ export const getAlloConnectionStatus = async (
 };
 
 const forgetRegistration = async (registrationId: string): Promise<void> => {
-  await kv.delete(getAlloRegistrationClaimKey(registrationId), SERVER_SCOPE);
   await kv.delete(ALLO_REGISTRATION_KV_KEY);
+  // Registrations made by 0.2.0 pre-releases also claimed their id in the
+  // server scope. Nothing reads that claim anymore; clean it up if it exists.
+  await kv
+    .delete(getAlloRegistrationClaimKey(registrationId), { scope: 'SERVER' })
+    .catch(() => false);
+};
+
+/**
+ * Posts a one-time nonce to the webhook URL and expects the receiver to echo
+ * it, before the URL is handed to Allo. Only Twenty is called. A URL that does
+ * not reach this workspace would otherwise become a webhook that fails every
+ * delivery until Allo disables it.
+ *
+ * Only a definite wrong answer stops Connect. A server that cannot reach its
+ * own public URL from inside (no hairpin NAT, internal DNS) may still be
+ * reachable by Allo, so a network error is logged and Connect goes on.
+ */
+export const probeAlloWebhookUrl = async (webhookUrl: string): Promise<void> => {
+  const nonce = randomUUID();
+  const probeUrl = new URL(webhookUrl);
+
+  probeUrl.search = '';
+  probeUrl.searchParams.set(ALLO_WEBHOOK_PROBE_QUERY_PARAMETER, nonce);
+
+  await kv.set(ALLO_WEBHOOK_PROBE_KV_KEY, nonce);
+
+  let status: number | null = null;
+  let echoed = false;
+
+  try {
+    const response = await fetch(probeUrl, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'webhook-id': nonce },
+      body: JSON.stringify({ probe: nonce }),
+    });
+
+    status = response.status;
+    echoed =
+      response.ok &&
+      ((await response.json().catch(() => null)) as { probe?: string } | null)
+        ?.probe === 'ok';
+  } catch (error) {
+    console.warn(
+      `[allo] could not reach ${probeUrl.origin} from this server to check it; registering it anyway`,
+      error,
+    );
+  } finally {
+    await kv.delete(ALLO_WEBHOOK_PROBE_KV_KEY).catch(() => false);
+  }
+
+  if (status !== null && !echoed) {
+    throw new Error(
+      `${new URL(webhookUrl).origin} does not reach this workspace (HTTP ${status}), so Allo could not deliver calls to it. Nothing was created in Allo.`,
+    );
+  }
 };
 
 /**
@@ -200,13 +250,12 @@ export type ConnectAlloResult =
  */
 export const connectAllo = async ({
   apiKey,
-  apiUrl,
-  workspaceId,
+  webhookBaseUrl,
   workspaceUrl,
 }: {
   apiKey: string;
-  apiUrl: string;
-  workspaceId: string;
+  /** Where Twenty serves this workspace's public routes. */
+  webhookBaseUrl: string;
   /** The workspace's own URL, shown in the webhook description. */
   workspaceUrl?: string;
 }): Promise<ConnectAlloResult> => {
@@ -218,29 +267,35 @@ export const connectAllo = async ({
       apiKey,
       webhookId: existing.webhookId,
     });
-    const claim = await readAlloRegistrationClaim(existing.registrationId);
-    // Built from the current server URL, so a server that moved gets a new
+    // Built from the current base URL, so a workspace that moved gets a new
     // webhook pointing at its new address.
     const expectedUrl = buildAlloWebhookUrl({
-      apiUrl,
+      baseUrl: webhookBaseUrl,
       registrationId: existing.registrationId,
     });
 
     if (
       endpoint?.enabled &&
       isSameWebhookTarget(endpoint.url, expectedUrl) &&
-      claim
+      existing.signingSecret
     ) {
       return { outcome: 'already-connected', webhookUrl: existing.webhookUrl };
     }
   }
 
+  const registrationId = randomUUID();
+  const webhookUrl = buildAlloWebhookUrl({
+    baseUrl: webhookBaseUrl,
+    registrationId,
+  });
+
+  // Before touching Allo, so a URL that cannot work leaves the current
+  // webhook in place.
+  await probeAlloWebhookUrl(webhookUrl);
+
   if (existing) {
     await disconnectAllo({ apiKey });
   }
-
-  const registrationId = randomUUID();
-  const webhookUrl = buildAlloWebhookUrl({ apiUrl, registrationId });
 
   const endpoint = await createAlloWebhook({
     apiKey,
@@ -256,23 +311,19 @@ export const connectAllo = async ({
   }
 
   try {
-    const claim: AlloRegistrationClaim = {
-      workspaceId,
-      signingSecret: endpoint.signingSecret,
-    };
     const registration: AlloWorkspaceRegistration = {
       registrationId,
       webhookId: endpoint.id,
       webhookUrl,
+      signingSecret: endpoint.signingSecret,
       apiKeyFingerprint,
       connectedAt: new Date().toISOString(),
     };
 
-    await kv.set(getAlloRegistrationClaimKey(registrationId), claim, SERVER_SCOPE);
     await kv.set(ALLO_REGISTRATION_KV_KEY, registration);
   } catch (error) {
-    // Without the stored secret every delivery would be rejected, and Allo
-    // would eventually disable the endpoint. Undo rather than leave it dangling.
+    // Without the stored registration every delivery would be dropped, and
+    // Allo would keep sending them. Undo rather than leave it dangling.
     await deleteAlloWebhook({ apiKey, webhookId: endpoint.id }).catch(
       (rollbackError: unknown) =>
         console.error(

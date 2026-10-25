@@ -3,7 +3,7 @@ import { createHmac, randomBytes } from 'node:crypto';
 export const SIGNING_SECRET_BYTES = randomBytes(32);
 export const SIGNING_SECRET = `whsec_${SIGNING_SECRET_BYTES.toString('base64')}`;
 
-/** Builds the route payload Twenty hands a server route for one signed delivery. */
+/** Builds the route payload Twenty hands the receiver route for one signed delivery. */
 export const buildSignedRoutePayload = ({
   body,
   registrationId = 'reg_1',
@@ -35,7 +35,7 @@ export const buildSignedRoutePayload = ({
     body: typeof body === 'string' ? null : body,
     rawBody,
     isBase64Encoded: false,
-    requestContext: { http: { method: 'POST', path: '/webhooks/server/x' } },
+    requestContext: { http: { method: 'POST', path: '/allo/webhook' } },
     userWorkspaceId: null,
   };
 };
