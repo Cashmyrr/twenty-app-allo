@@ -2,6 +2,8 @@
 
 Brings [Allo](https://www.withallo.com) calls into [Twenty](https://twenty.com).
 
+![Allo for Twenty: call sync, call details, never-called filter, Send to Power Dialer and one-click setup](docs/demo.gif)
+
 - Every Allo call becomes one **Allo Call** record. It fills in as the call progresses: ringing, answered, then completed with duration, recording, transcript, AI summary and tags.
 - Each call is linked to the Twenty member who handled it, the person on the other end, and that person's company.
 - `person.lastAlloCallAt` holds the date of the last call with each person, so you can filter on "never called" or "not called in 30 days".
