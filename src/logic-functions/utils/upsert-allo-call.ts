@@ -1,10 +1,11 @@
-import { type CoreApiClient } from 'twenty-client-sdk/core';
+import { type CoreApiClient, type CoreSchema } from 'twenty-client-sdk/core';
 
 import {
   ALLO_CALL_STATUS_COMPLETED,
   ALLO_CALL_STATUS_IN_PROGRESS,
   ALLO_CALL_STATUS_RINGING,
 } from 'src/constants/allo-call-values';
+import { type NearbyCallMatch } from 'src/logic-functions/utils/map-allo-call';
 
 // A call only ever moves forward through its lifecycle. Allo retries a failed
 // delivery and can deliver out of order, so a late call.answered must not pull a
@@ -36,6 +37,10 @@ const isStatusRegression = (
 export type UpsertAlloCallInput = {
   alloCallId: string | null;
   correlationKey: string | null;
+  /** Tried when neither the Allo id nor the correlation key finds a record. */
+  nearbyMatch?: NearbyCallMatch | null;
+  /** Left as they are when updating an existing record. */
+  keepExistingFields?: string[];
   fields: Record<string, unknown>;
   /** call.completed creates the record if the earlier events never arrived. */
   shouldCreateIfMissing: boolean;
@@ -60,11 +65,68 @@ const withoutEmptyValues = (
     ),
   );
 
-type ExistingRecord = { id: string; status: string | null };
+type ExistingRecord = {
+  id: string;
+  status: string | null;
+  matchedBy: 'allo-call-id' | 'correlation-key' | 'nearby';
+};
+
+const findNearbyRecord = async (
+  client: CoreApiClient,
+  match: NearbyCallMatch,
+): Promise<ExistingRecord | null> => {
+  const targetFilter: CoreSchema.AlloCallFilterInput[] =
+    match.target === 'lifecycle-record'
+      ? [
+          {
+            or: [{ alloCallId: { is: 'NULL' } }, { alloCallId: { eq: '' } }],
+          },
+          { status: { neq: ALLO_CALL_STATUS_COMPLETED } },
+        ]
+      : [{ alloCallId: { neq: '' } }];
+
+  const { alloCalls } = await client.query({
+    alloCalls: {
+      __args: {
+        filter: {
+          and: [
+            { contactNumber: { eq: match.contactNumber } },
+            { alloNumber: { eq: match.alloNumber } },
+            { startedAt: { gte: match.startedFrom } },
+            { startedAt: { lte: match.startedTo } },
+            ...targetFilter,
+          ],
+        },
+        // The closest ring start before call.completed, or the closest
+        // completed record after a late ring event.
+        orderBy: [
+          {
+            startedAt:
+              match.target === 'lifecycle-record'
+                ? 'DescNullsLast'
+                : 'AscNullsLast',
+          },
+        ],
+        first: 1,
+      },
+      edges: { node: { id: true, status: true } },
+    },
+  });
+
+  const node = alloCalls?.edges?.[0]?.node;
+
+  return node?.id
+    ? { id: node.id, status: node.status ?? null, matchedBy: 'nearby' }
+    : null;
+};
 
 const findExistingRecord = async (
   client: CoreApiClient,
-  { alloCallId, correlationKey }: Pick<UpsertAlloCallInput, 'alloCallId' | 'correlationKey'>,
+  {
+    alloCallId,
+    correlationKey,
+    nearbyMatch,
+  }: Pick<UpsertAlloCallInput, 'alloCallId' | 'correlationKey' | 'nearbyMatch'>,
 ): Promise<ExistingRecord | null> => {
   // Allo's own id is authoritative once we have it.
   if (alloCallId) {
@@ -78,26 +140,34 @@ const findExistingRecord = async (
     const byAlloCallId = alloCalls?.edges?.[0]?.node;
 
     if (byAlloCallId?.id) {
-      return { id: byAlloCallId.id, status: byAlloCallId.status ?? null };
+      return {
+        id: byAlloCallId.id,
+        status: byAlloCallId.status ?? null,
+        matchedBy: 'allo-call-id',
+      };
     }
   }
 
-  if (!correlationKey) {
-    return null;
+  if (correlationKey) {
+    const { alloCalls } = await client.query({
+      alloCalls: {
+        __args: { filter: { correlationKey: { eq: correlationKey } }, first: 1 },
+        edges: { node: { id: true, status: true } },
+      },
+    });
+
+    const byCorrelationKey = alloCalls?.edges?.[0]?.node;
+
+    if (byCorrelationKey?.id) {
+      return {
+        id: byCorrelationKey.id,
+        status: byCorrelationKey.status ?? null,
+        matchedBy: 'correlation-key',
+      };
+    }
   }
 
-  const { alloCalls } = await client.query({
-    alloCalls: {
-      __args: { filter: { correlationKey: { eq: correlationKey } }, first: 1 },
-      edges: { node: { id: true, status: true } },
-    },
-  });
-
-  const byCorrelationKey = alloCalls?.edges?.[0]?.node;
-
-  return byCorrelationKey?.id
-    ? { id: byCorrelationKey.id, status: byCorrelationKey.status ?? null }
-    : null;
+  return nearbyMatch ? findNearbyRecord(client, nearbyMatch) : null;
 };
 
 /**
@@ -107,11 +177,19 @@ const findExistingRecord = async (
  */
 export const upsertAlloCall = async (
   client: CoreApiClient,
-  { alloCallId, correlationKey, fields, shouldCreateIfMissing }: UpsertAlloCallInput,
+  {
+    alloCallId,
+    correlationKey,
+    nearbyMatch,
+    keepExistingFields = [],
+    fields,
+    shouldCreateIfMissing,
+  }: UpsertAlloCallInput,
 ): Promise<UpsertAlloCallResult> => {
   const existing = await findExistingRecord(client, {
     alloCallId,
     correlationKey,
+    nearbyMatch,
   });
 
   const data = withoutEmptyValues(fields);
@@ -120,6 +198,20 @@ export const upsertAlloCall = async (
     // Everything else in a late event is additive, so only the status is held back.
     if (isStatusRegression(data.status, existing.status)) {
       delete data.status;
+    }
+
+    for (const field of keepExistingFields) {
+      delete data[field];
+    }
+
+    // A ring event that lands on the record call.completed created gives it
+    // the key, so the call's remaining ring events match it exactly.
+    if (
+      existing.matchedBy === 'nearby' &&
+      nearbyMatch?.target === 'completed-record' &&
+      correlationKey
+    ) {
+      data.correlationKey = correlationKey;
     }
 
     const result = await client.mutation({

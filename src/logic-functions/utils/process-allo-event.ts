@@ -108,6 +108,8 @@ export const processAlloEvent = async (
   const result = await upsertAlloCall(client, {
     alloCallId: mapped.alloCallId,
     correlationKey: mapped.correlationKey,
+    nearbyMatch: mapped.nearbyMatch,
+    keepExistingFields: mapped.keepExistingFields,
     fields: {
       ...mapped.fields,
       ...(links.memberId ? { memberId: links.memberId } : {}),

@@ -45,6 +45,7 @@ Allo sends several events per call. The app updates one record across all of the
 
 - The status only moves forward. A late or retried event still adds its own fields but never moves a completed call back.
 - `call.completed` creates the record if the earlier events never arrived, so a missed event never loses a call.
+- Allo gives `call.completed` a different start time than the ringing events (the answer time), so it is matched to the ringing record by the two numbers and a 10-minute window. The record keeps the ring start as its start time.
 - Reps usually tag a call after hanging up, so tags arrive on their own events. A tag that arrives before its call is recorded is retried later.
 - A delivery that cannot be written, for example while Twenty is unavailable, is retried for up to about 9 hours.
 - Tags are stored as Allo tag keys, the same values `call.completed` uses.

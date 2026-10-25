@@ -88,7 +88,15 @@ Connect, disconnect and saving the key all require the `APPLICATIONS` permission
 
 ## One record per call
 
-Only `call.completed` carries Allo's call id (`cll_...`). Earlier events are matched on a **correlation key**, `fromNumber|toNumber|startedAt`, which Allo keeps identical across the events of one call. Once the id arrives it becomes the lookup key.
+Only `call.completed` carries Allo's call id (`cll_...`). The ring events (`call.received`, `call.triggered`, `call.answered`) are matched on a **correlation key**, `fromNumber|toNumber|startedAt`, which Allo keeps identical across them. Once the id arrives it becomes the lookup key.
+
+`call.completed` does not share that key: on an answered call its `start_date` is the answer time, truncated to the second, while the ring events carry the ring start with milliseconds. When neither the id nor the key finds a record, the event looks for one with the same contact and Allo numbers nearby (`NearbyCallMatch` in `map-allo-call.ts`):
+
+- `call.completed` takes the closest ring record that started up to 10 minutes before it (5 seconds after, for the truncation), has no Allo id yet and is not completed.
+- A ring event that arrives after `call.completed`, for example on a retry, takes the closest completed record that started from 5 seconds before it to 10 minutes after, and gives it the correlation key so the call's other ring events match exactly.
+- On a record the ring events created, `call.completed` keeps their `startedAt` (the ring start) and `name` (which carries the contact's name; `call.completed` often has an empty `to_name`).
+
+Requiring "no Allo id yet" on one side and "has one" on the other keeps a redial a minute later on its own record.
 
 - `upsertAlloCall` drops null fields, so a later event never blanks what an earlier one wrote.
 - Status has a rank (`RINGING` < `IN_PROGRESS` < `COMPLETED`) and never goes back.

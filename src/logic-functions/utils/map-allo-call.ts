@@ -17,14 +17,39 @@ export type AlloCallDirection =
   | typeof ALLO_CALL_DIRECTION_INBOUND
   | typeof ALLO_CALL_DIRECTION_OUTBOUND;
 
+/**
+ * Finds the record of the same call when the exact correlation key misses:
+ * same contact and Allo numbers, started within a window. `target` says which
+ * kind of record the other side of the call created.
+ */
+export type NearbyCallMatch = {
+  contactNumber: string;
+  alloNumber: string;
+  startedFrom: string;
+  startedTo: string;
+  /**
+   * `lifecycle-record`: built by call.received/triggered/answered, so it has no
+   * Allo id and is not completed yet. `completed-record`: created by a
+   * call.completed that arrived first.
+   */
+  target: 'lifecycle-record' | 'completed-record';
+};
+
 /** Everything the webhook needs to find, create and update the Twenty record. */
 export type MappedAlloCall = {
   /** Fields to write on the Allo call record. Links are added separately. */
   fields: Record<string, unknown>;
   /** Present only from call.completed. */
   alloCallId: string | null;
-  /** Stable across all four events of one call. Null if the payload is unusable. */
+  /**
+   * Stable across call.received, call.triggered and call.answered. Null if the
+   * payload is unusable.
+   */
   correlationKey: string | null;
+  /** Null when the payload lacks a number or a start time. */
+  nearbyMatch: NearbyCallMatch | null;
+  /** Fields an update must leave as they are on an existing record. */
+  keepExistingFields: string[];
   direction: AlloCallDirection | null;
   /** The number on the other end: what we resolve the Person link from. */
   contactNumber: string | null;
@@ -69,7 +94,9 @@ export const normalizeTimestamp = (
 /**
  * Only call.completed carries Allo's call ID, so the earlier events are matched
  * on the triple that Allo keeps identical across them: the two numbers and the
- * moment the call started ringing.
+ * moment the call started ringing. call.completed does not share it: on an
+ * answered call its `start_date` is the answer time, to the second. That side
+ * is matched with `NearbyCallMatch`.
  */
 export const buildCorrelationKey = ({
   fromNumber,
@@ -88,6 +115,49 @@ export const buildCorrelationKey = ({
 };
 
 const asIsoOrNull = (value: string | null): string | null => value;
+
+// How far call.completed's start_date can sit from the ring start: the ring,
+// plus any IVR or queue. Narrow enough that a redial gets its own record.
+const NEARBY_CALL_WINDOW_MS = 10 * 60_000;
+// start_date is truncated to the second; the ring start has milliseconds.
+const TIMESTAMP_SLACK_MS = 5_000;
+
+const shiftIso = (iso: string, ms: number): string =>
+  new Date(new Date(iso).getTime() + ms).toISOString();
+
+const buildNearbyMatch = ({
+  side,
+  contactNumber,
+  alloNumber,
+  startedAt,
+}: {
+  side: 'lifecycle' | 'completed';
+  contactNumber: string | null;
+  alloNumber: string | null;
+  startedAt: string | null;
+}): NearbyCallMatch | null => {
+  if (!contactNumber || !alloNumber || !startedAt) {
+    return null;
+  }
+
+  // call.completed starts at or after the ring start, so it looks back for the
+  // ringing record; a late ring event looks forward for the completed one.
+  return side === 'completed'
+    ? {
+        contactNumber,
+        alloNumber,
+        startedFrom: shiftIso(startedAt, -NEARBY_CALL_WINDOW_MS),
+        startedTo: shiftIso(startedAt, TIMESTAMP_SLACK_MS),
+        target: 'lifecycle-record',
+      }
+    : {
+        contactNumber,
+        alloNumber,
+        startedFrom: shiftIso(startedAt, -TIMESTAMP_SLACK_MS),
+        startedTo: shiftIso(startedAt, NEARBY_CALL_WINDOW_MS),
+        target: 'completed-record',
+      };
+};
 
 const nonEmptyString = (value: unknown): string | null =>
   typeof value === 'string' && value.trim().length > 0 ? value : null;
@@ -229,6 +299,14 @@ const mapLifecycleEvent = (
     fields,
     alloCallId: null,
     correlationKey: buildCorrelationKey({ fromNumber, toNumber, startedAt }),
+    nearbyMatch: buildNearbyMatch({
+      side: 'lifecycle',
+      contactNumber,
+      alloNumber: fields.alloNumber as string | null,
+      startedAt,
+    }),
+    // The ring start and the contact's name come from these events.
+    keepExistingFields: [],
     direction,
     contactNumber,
     userEmail: nonEmptyString(data.user_email),
@@ -341,6 +419,16 @@ const mapCompletedEvent = (data: AlloCallCompletedData): MappedAlloCall => {
     fields,
     alloCallId: nonEmptyString(data.id),
     correlationKey: buildCorrelationKey({ fromNumber, toNumber, startedAt }),
+    nearbyMatch: buildNearbyMatch({
+      side: 'completed',
+      contactNumber,
+      alloNumber: fields.alloNumber as string | null,
+      startedAt,
+    }),
+    // On a record the ring events created, their start time is the ring start
+    // and their name carries the contact's name, which call.completed often
+    // leaves out.
+    keepExistingFields: ['name', 'startedAt'],
     direction,
     contactNumber,
     userEmail: nonEmptyString(data.user_email),
