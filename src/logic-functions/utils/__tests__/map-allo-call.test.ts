@@ -253,6 +253,37 @@ describe('mapAlloCall', () => {
     expect(mapped.fields.status).toBe('COMPLETED');
   });
 
+  // Allo sends no result when nobody picks up, however long it rang.
+  it.each([
+    ['missing', undefined],
+    ['null', null],
+    ['empty', ''],
+  ])('marks a call with a %s result as not answered', (_label, result) => {
+    const mapped = mapAlloCall('call.completed', {
+      ...completedData,
+      result,
+      length_in_minutes: 0.83,
+    } as never);
+
+    expect(mapped.fields.result).toBe('NOT_ANSWERED');
+  });
+
+  it('keeps a short call Allo reports as answered', () => {
+    const mapped = mapAlloCall('call.completed', {
+      ...completedData,
+      result: 'ANSWERED',
+      length_in_minutes: 0.02,
+    });
+
+    expect(mapped.fields.result).toBe('ANSWERED');
+  });
+
+  it('sets no result on ringing events', () => {
+    expect(
+      mapAlloCall('call.received', receivedData).fields.result,
+    ).toBeUndefined();
+  });
+
   it('handles a call with no matched Allo contact', () => {
     const mapped = mapAlloCall('call.received', {
       ...receivedData,

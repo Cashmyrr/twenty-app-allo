@@ -154,6 +154,14 @@ export const buildPhoneCandidates = (
   return [...new Set(candidates.filter((candidate) => candidate.length > 0))];
 };
 
+/** `+33` for a French number, or null when the number cannot be parsed. */
+const callingCodeOf = (contactNumber: string | null): string | null => {
+  const number = nonEmptyString(contactNumber);
+  const parsed = number ? parsePhoneNumberFromString(number) : undefined;
+
+  return parsed?.countryCallingCode ? `+${parsed.countryCallingCode}` : null;
+};
+
 /**
  * The person on the other end of the call. Email is the reliable signal, so it
  * is tried first; the phone number is the fallback. Both are best-effort: a
@@ -202,6 +210,83 @@ export const resolvePersonLink = async (
     : { personId: null, companyId: null };
 };
 
+/** A field name as Twenty allows it, so a typo cannot reach the query. */
+const FIELD_NAME_PATTERN = /^[a-z][a-zA-Z0-9]*$/;
+
+/**
+ * The company phone field set in the app's variables, or null when unset.
+ * Twenty's company has no phone field, so this is opt-in.
+ */
+export const readCompanyPhoneField = (value: unknown): string | null => {
+  const name = nonEmptyString(value);
+
+  if (!name) {
+    return null;
+  }
+
+  if (!FIELD_NAME_PATTERN.test(name)) {
+    console.warn(
+      `[allo] ignoring company phone field "${name}": not a valid field name`,
+    );
+
+    return null;
+  }
+
+  return name;
+};
+
+/**
+ * The company whose phone is the number called, for a call to a switchboard
+ * that matches no person. Linked only when exactly one company holds the
+ * number: a number shared by two companies links neither.
+ */
+export const findCompanyByPhone = async (
+  client: CoreApiClient,
+  {
+    fieldName,
+    contactNumber,
+  }: { fieldName: string; contactNumber: string | null },
+): Promise<string | null> => {
+  const candidates = buildPhoneCandidates(contactNumber);
+
+  if (candidates.length === 0) {
+    return null;
+  }
+
+  const callingCode = callingCodeOf(contactNumber);
+  const sameNumber = { [fieldName]: { primaryPhoneNumber: { in: candidates } } };
+
+  // The national number alone repeats across countries, so the calling code
+  // must agree when the company has one.
+  const filter = callingCode
+    ? {
+        and: [
+          sameNumber,
+          {
+            or: [
+              { [fieldName]: { primaryPhoneCallingCode: { eq: callingCode } } },
+              { [fieldName]: { primaryPhoneCallingCode: { is: 'NULL' } } },
+              { [fieldName]: { primaryPhoneCallingCode: { eq: '' } } },
+            ],
+          },
+        ],
+      }
+    : sameNumber;
+
+  // The field is named at runtime, so the generated client cannot type the
+  // filter. Only `id` is selected, which every client knows.
+  const { companies } = await client.query({
+    companies: {
+      __args: { filter: filter as never, first: 2 },
+      edges: { node: { id: true } },
+    },
+  });
+
+  const matches = companies?.edges ?? [];
+
+  return matches.length === 1 ? (matches[0]?.node?.id ?? null) : null;
+};
+
 /**
  * Resolves all three links in one go. Link resolution must never fail the
  * webhook, so each lookup is isolated: a broken one costs its own link only.
@@ -212,10 +297,13 @@ export const resolveLinks = async (
     userEmail,
     alloPerson,
     contactNumber,
+    companyPhoneField = null,
   }: {
     userEmail: string | null;
     alloPerson: AlloPerson | null;
     contactNumber: string | null;
+    /** A PHONES field on company, for calls to a company's own number. */
+    companyPhoneField?: string | null;
   },
 ): Promise<ResolvedLinks> => {
   const [memberResult, personResult] = await Promise.allSettled([
@@ -236,9 +324,24 @@ export const resolveLinks = async (
       ? personResult.value
       : { personId: null, companyId: null };
 
+  let companyId = person.companyId;
+
+  // A person's company wins. Otherwise the number may be the company's own,
+  // typically its switchboard.
+  if (!companyId && companyPhoneField) {
+    try {
+      companyId = await findCompanyByPhone(client, {
+        fieldName: companyPhoneField,
+        contactNumber,
+      });
+    } catch (error) {
+      console.warn('[allo] company phone lookup failed', error);
+    }
+  }
+
   return {
     memberId: memberResult.status === 'fulfilled' ? memberResult.value : null,
     personId: person.personId,
-    companyId: person.companyId,
+    companyId,
   };
 };

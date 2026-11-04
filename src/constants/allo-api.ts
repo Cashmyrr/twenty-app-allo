@@ -6,6 +6,7 @@ export const buildAlloCallWebUrl = (alloCallId: string): string =>
 
 // Logic functions read application variables from `process.env`.
 export const ALLO_API_KEY_ENV_VAR_NAME = 'ALLO_API_KEY';
+export const ALLO_COMPANY_PHONE_FIELD_ENV_VAR_NAME = 'ALLO_COMPANY_PHONE_FIELD';
 
 // Topics the app subscribes its webhook to. Tags get their own events because a
 // rep usually tags a call after hanging up, once call.completed has fired.

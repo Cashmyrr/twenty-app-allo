@@ -1,5 +1,7 @@
 import { type CoreApiClient } from 'twenty-client-sdk/core';
 
+import { ALLO_COMPANY_PHONE_FIELD_ENV_VAR_NAME } from 'src/constants/allo-api';
+
 import {
   type AlloCallCompletedData,
   type AlloCallLifecycleData,
@@ -10,7 +12,10 @@ import {
 } from 'src/types/allo-webhook.type';
 import { applyAlloTag } from 'src/logic-functions/utils/apply-allo-tag';
 import { mapAlloCall } from 'src/logic-functions/utils/map-allo-call';
-import { resolveLinks } from 'src/logic-functions/utils/resolve-links';
+import {
+  readCompanyPhoneField,
+  resolveLinks,
+} from 'src/logic-functions/utils/resolve-links';
 import { upsertAlloCall } from 'src/logic-functions/utils/upsert-allo-call';
 
 export type ProcessAlloEventResult =
@@ -103,6 +108,9 @@ export const processAlloEvent = async (
     userEmail: mapped.userEmail,
     alloPerson: mapped.alloPerson,
     contactNumber: mapped.contactNumber,
+    companyPhoneField: readCompanyPhoneField(
+      process.env[ALLO_COMPANY_PHONE_FIELD_ENV_VAR_NAME],
+    ),
   });
 
   const result = await upsertAlloCall(client, {

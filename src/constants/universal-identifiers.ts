@@ -212,3 +212,12 @@ export const ALLO_WEBHOOK_RECEIVER_LOGIC_FUNCTION_UNIVERSAL_IDENTIFIER =
 // Link from an Allo Call record to the call in Allo's web app.
 export const ALLO_CALL_ALLO_LINK_FIELD_UNIVERSAL_IDENTIFIER =
   'd8265927-28a5-4955-a3f0-148fda4fead9';
+
+// Optional application variable naming the company phone field (a PHONES field
+// the workspace added: Twenty's company has none by default).
+export const ALLO_COMPANY_PHONE_FIELD_VARIABLE_UNIVERSAL_IDENTIFIER =
+  'b7e8b489-b4af-43a7-87c2-d04fd7d5e749';
+
+// Result option for a call nobody picked up: Allo sends no result for it.
+export const ALLO_CALL_RESULT_OPTION_NOT_ANSWERED_UNIVERSAL_IDENTIFIER =
+  '763aaeb4-d6bb-4521-9a06-0db1333f024d';

@@ -23,3 +23,7 @@ export type AlloCallResult = (typeof ALLO_CALL_RESULT_VALUES)[number];
 export const isAlloCallResult = (value: unknown): value is AlloCallResult =>
   typeof value === 'string' &&
   (ALLO_CALL_RESULT_VALUES as readonly string[]).includes(value);
+
+// Not one of Allo's values: Allo sends call.completed without a result when
+// nobody picked up, inbound or outbound, whatever the ringing time.
+export const ALLO_CALL_RESULT_NOT_ANSWERED = 'NOT_ANSWERED';

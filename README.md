@@ -5,7 +5,8 @@ Brings [Allo](https://www.withallo.com) calls into [Twenty](https://twenty.com).
 ![Allo for Twenty: call sync, call details, never-called filter, Send to Power Dialer and one-click setup](docs/demo.gif)
 
 - Every Allo call becomes one **Allo Call** record. It fills in as the call progresses: ringing, answered, then completed with duration, recording, transcript, AI summary and tags.
-- Each call is linked to the Twenty member who handled it, the person on the other end, and that person's company.
+- Each call is linked to the Twenty member who handled it, the person on the other end, and that person's company. A call to a company's own number, such as its switchboard, can link to the company directly.
+- A call nobody picked up is marked **Not answered**.
 - `person.lastAlloCallAt` holds the date of the last call with each person, so you can filter on "never called" or "not called in 30 days".
 - **Send to Power Dialer** pushes any selection of people into your own Allo Power Dialer queue, and reports anyone it had to skip.
 
@@ -56,7 +57,11 @@ Links are best-effort. A call with no match still lands with its raw numbers, Al
 
 - **Member:** Allo's user email matched against the Twenty member's login email.
 - **Person:** the Allo contact's email first, then the contact phone number. Twenty stores the national number separately from the calling code, so the number is parsed before matching. A suffix match is the last resort, and it is dropped when it matches more than one person.
-- **Company:** the matched person's company. The app does not match on Allo's company name, because name matching links the wrong account too often.
+- **Company:** the matched person's company. When no person matches and a company phone field is set in the Settings tab, the company whose phone is the number called, provided exactly one company has it and the calling code agrees. Twenty's company has no phone field by default, so this is off until a workspace adds a Phones field to Company and picks it. The app does not match on Allo's company name, because name matching links the wrong account too often.
+
+## Result
+
+`Result` holds Allo's `result` from `call.completed`: Answered, Voicemail, Transferred to AI, Transferred externally, Blocked or Failed. Allo sends no result when nobody picks up, inbound or outbound, so the app records **Not answered** then. Duration is not used: Allo reports calls of one second as answered (picked up and hung up), and unanswered calls can ring for a minute.
 
 ## Filtering on "never called"
 

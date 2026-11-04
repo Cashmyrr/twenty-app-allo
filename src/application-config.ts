@@ -1,8 +1,12 @@
 import { defineApplication, FieldType } from 'twenty-sdk/define';
 
-import { ALLO_API_KEY_ENV_VAR_NAME } from 'src/constants/allo-api';
+import {
+  ALLO_API_KEY_ENV_VAR_NAME,
+  ALLO_COMPANY_PHONE_FIELD_ENV_VAR_NAME,
+} from 'src/constants/allo-api';
 import {
   ALLO_API_KEY_VARIABLE_UNIVERSAL_IDENTIFIER,
+  ALLO_COMPANY_PHONE_FIELD_VARIABLE_UNIVERSAL_IDENTIFIER,
   APP_DESCRIPTION,
   APP_DISPLAY_NAME,
   APPLICATION_UNIVERSAL_IDENTIFIER,
@@ -31,6 +35,18 @@ export default defineApplication({
       type: FieldType.TEXT,
       isSecret: true,
       isRequired: true,
+    },
+    // Twenty's company has no phone field. A workspace that added one names it
+    // here, so a call to a company's own number links to that company.
+    [ALLO_COMPANY_PHONE_FIELD_ENV_VAR_NAME]: {
+      universalIdentifier:
+        ALLO_COMPANY_PHONE_FIELD_VARIABLE_UNIVERSAL_IDENTIFIER,
+      label: 'Company phone field',
+      description:
+        'Optional. API name of a Phones field on Company (for example "phone"). When a call matches no person, the app links it to the one company whose phone is the number called. Leave empty to link companies only through people.',
+      type: FieldType.TEXT,
+      isSecret: false,
+      isRequired: false,
     },
   },
 });

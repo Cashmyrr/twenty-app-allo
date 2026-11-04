@@ -79,10 +79,11 @@ The app's **Settings** tab (`front-components/allo-settings.tsx`) owns the conne
 - **Connect** saves the API key, if a new one was typed, through Twenty's metadata API (the same call as the built-in variables tab), then calls `allo-connect`.
 - `allo-connect` is idempotent. When the current registration is healthy (same key fingerprint, webhook exists and is enabled in Allo, pointing at this workspace's current URL, signing secret stored) it only reads it. Otherwise it probes the new URL, deletes the old webhook if it can, creates one with a fresh `registrationId`, and stores the registration with its signing secret in the workspace scope. If storing fails, the new webhook is deleted. So Connect is also the repair.
 - **Disconnect** deletes the webhook in Allo and forgets the registration. Uninstall does the same.
+- **Company phone** lists the Phones fields on Company and saves the chosen one in the `ALLO_COMPANY_PHONE_FIELD` variable. `resolve-links.ts` reads it on each event and, when no person matched, looks the number up in that field. The field is named at runtime, so the query filters on it but selects only `id`, which the generated client always knows.
 - Opening the tab calls `allo-connection-status`, which asks Allo once whether the webhook still exists. Nothing polls in the background.
 - The health check reads local state only and never calls Allo. Its actions carry no `location`, so Twenty opens the app's configuration tab, which is the Settings tab.
 
-Why a tab and not the built-in variables tab: Twenty fires no event when a variable changes, so nothing could register the webhook when the key is saved. Declaring a settings tab hides the built-in variables tab, which is why the tab also takes the key.
+Why a tab and not the built-in variables tab: Twenty fires no event when a variable changes, so nothing could register the webhook when the key is saved. Declaring a settings tab hides the built-in variables tab, which is why the tab also takes the key and the company phone field.
 
 Connect, disconnect and saving the key all require the `APPLICATIONS` permission. Front components act as the viewer narrowed to the app's role, so the role carries that flag too.
 

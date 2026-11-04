@@ -2,6 +2,7 @@ import { buildAlloCallWebUrl } from 'src/constants/allo-api';
 import {
   ALLO_CALL_DIRECTION_INBOUND,
   ALLO_CALL_DIRECTION_OUTBOUND,
+  ALLO_CALL_RESULT_NOT_ANSWERED,
   ALLO_CALL_STATUS_COMPLETED,
   ALLO_CALL_STATUS_IN_PROGRESS,
   ALLO_CALL_STATUS_RINGING,
@@ -420,6 +421,11 @@ const mapCompletedEvent = (data: AlloCallCompletedData): MappedAlloCall => {
 
   if (isAlloCallResult(data.result)) {
     fields.result = data.result;
+  } else if (nonEmptyString(data.result) === null) {
+    // Allo leaves the result out when nobody picked up. Duration is no signal:
+    // a call answered and hung up lasts a second, an unanswered one rings for
+    // up to a minute.
+    fields.result = ALLO_CALL_RESULT_NOT_ANSWERED;
   }
 
   return {
