@@ -23,8 +23,10 @@ yarn lint
 yarn typecheck
 yarn test:unit           # no server needed
 yarn twenty dev:build    # bundles the app, catches what typecheck does not
-yarn test                # integration tests: installs the app on a running Twenty server
+TWENTY_TEST_DISPOSABLE=true yarn test:integration   # installs the app on a running Twenty server
 ```
+
+The integration tests uninstall the app before and after they run, which deletes its data. Point `TWENTY_API_URL` at a disposable server only (by default `http://localhost:2020`). They refuse to start without `TWENTY_TEST_DISPOSABLE=true`. `yarn test` runs the unit tests.
 
 CI runs all of them on every pull request, against a pinned Twenty version.
 

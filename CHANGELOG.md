@@ -4,6 +4,10 @@ All notable changes to this app are documented here. The format follows [Keep a 
 
 ## [Unreleased]
 
+### Changed
+
+- `yarn test` runs the unit tests. The integration tests moved to `yarn test:integration` and refuse to start without `TWENTY_TEST_DISPOSABLE=true`, since they uninstall the app and delete its data.
+
 ## [0.3.0]
 
 ### Added

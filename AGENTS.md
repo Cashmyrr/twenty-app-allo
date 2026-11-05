@@ -41,7 +41,7 @@ Every page below is served as Markdown when you append `.md` to its URL. The ful
 | Typecheck against the generated SDK | `yarn twenty dev:typecheck`                              |
 | Lint                                | `yarn lint`                                              |
 | Unit tests                          | `yarn test:unit`                                         |
-| Integration tests (needs a server)  | `yarn test`                                              |
+| Integration tests (needs a server)  | `TWENTY_TEST_DISPOSABLE=true yarn test:integration`      |
 | Run a logic function by hand        | `yarn twenty dev:function:exec -n <name> -p '{"k":"v"}'` |
 | Stream logic function logs          | `yarn twenty dev:function:logs`                          |
 | Remove the app from the workspace   | `yarn twenty app:uninstall --yes`                        |

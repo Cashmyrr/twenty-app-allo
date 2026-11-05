@@ -7,7 +7,26 @@ import { appDevOnce, appUninstall } from 'twenty-sdk/cli';
 const APP_PATH = process.cwd();
 const CONFIG_DIR = path.join(os.homedir(), '.twenty');
 
+// The tests uninstall the app before and after they run, which deletes every
+// Allo Call record on that server. They only run when the caller states the
+// server is disposable, and only through the test config, never through the
+// remotes in ~/.twenty/config.json.
+const TEST_REMOTE = 'local';
+
 function validateEnv(): { apiUrl: string; apiKey: string } {
+  if (process.env.TWENTY_TEST_DISPOSABLE !== 'true') {
+    throw new Error(
+      'Integration tests uninstall the app, which deletes its data. ' +
+        'Run them only against a disposable Twenty server, with TWENTY_TEST_DISPOSABLE=true.',
+    );
+  }
+
+  if (process.env.NODE_ENV !== 'test') {
+    throw new Error(
+      'NODE_ENV must be "test" so the CLI reads ~/.twenty/config.test.json, not your remotes.',
+    );
+  }
+
   const apiUrl = process.env.TWENTY_API_URL;
   const apiKey = process.env.TWENTY_API_KEY;
 
@@ -44,9 +63,9 @@ function writeConfig(apiUrl: string, apiKey: string) {
     {
       version: 1,
       remotes: {
-        local: { apiUrl, apiKey, twentyCLIAccessToken: apiKey },
+        [TEST_REMOTE]: { apiUrl, apiKey, twentyCLIAccessToken: apiKey },
       },
-      defaultRemote: 'local',
+      defaultRemote: TEST_REMOTE,
     },
     null,
     2,
@@ -63,7 +82,9 @@ export async function setup() {
 
   writeConfig(apiUrl, apiKey);
 
-  await appUninstall({ appPath: APP_PATH }).catch(() => {});
+  await appUninstall({ appPath: APP_PATH, remote: TEST_REMOTE }).catch(
+    () => {},
+  );
 
   const result = await appDevOnce({
     appPath: APP_PATH,
@@ -78,7 +99,10 @@ export async function setup() {
 }
 
 export async function teardown() {
-  const uninstallResult = await appUninstall({ appPath: APP_PATH });
+  const uninstallResult = await appUninstall({
+    appPath: APP_PATH,
+    remote: TEST_REMOTE,
+  });
 
   if (!uninstallResult.success) {
     console.warn(
