@@ -1,10 +1,7 @@
 import { useCallback, useEffect, useId, useState } from 'react';
 import { MetadataApiClient } from 'twenty-client-sdk/metadata';
 import { RestApiClient } from 'twenty-client-sdk/rest';
-import {
-  defineFrontComponent,
-  STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS,
-} from 'twenty-sdk/define';
+import { defineFrontComponent } from 'twenty-sdk/define';
 import { enqueueSnackbar } from 'twenty-sdk/front-component';
 import { MainButton } from 'twenty-ui/components/input';
 import { Section } from 'twenty-ui/components/layout';
@@ -18,6 +15,7 @@ import {
   ALLO_CONNECTION_STATUS_ROUTE_PATH,
   ALLO_DISCONNECT_ROUTE_PATH,
 } from 'src/constants/allo-api';
+import { COMPANY_OBJECT_UNIVERSAL_IDENTIFIER } from 'src/constants/standard-objects';
 import {
   APPLICATION_UNIVERSAL_IDENTIFIER,
   SETTINGS_FRONT_COMPONENT_UNIVERSAL_IDENTIFIER,
@@ -108,10 +106,7 @@ const loadCompanyPhoneSetting = async (): Promise<{
       objects: {
         __args: {
           filter: {
-            universalIdentifier: {
-              eq: STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.company
-                .universalIdentifier,
-            },
+            universalIdentifier: { eq: COMPANY_OBJECT_UNIVERSAL_IDENTIFIER },
           },
           paging: { first: 1 },
         },
