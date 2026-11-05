@@ -4,6 +4,8 @@ All notable changes to this app are documented here. The format follows [Keep a 
 
 ## [Unreleased]
 
+## [0.3.0]
+
 ### Added
 
 - **Company phone matching.** A call that matches no person links to the company whose phone is the number called, such as its switchboard. Pick the company's Phones field in the Settings tab; it is off by default because Twenty's company has no phone field. A number held by several companies links none.

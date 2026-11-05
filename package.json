@@ -1,6 +1,6 @@
 {
   "name": "@cashmyrr/twenty-app-allo",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Allo for Twenty: sync Allo calls into Twenty as records linked to the member and the person, and send any selection to the Allo Power Dialer",
   "license": "MIT",
   "author": "Cashmyrr",
